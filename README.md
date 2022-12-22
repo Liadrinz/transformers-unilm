@@ -6,7 +6,9 @@
 
 UniLM is proposed by MSR in 2019, which utilize the BERT model architecture and MLM task for both text NLU and NLG, and has achieved state-of-the-art performance on abstractive summarization task. See the [paper](https://arxiv.org/abs/1905.03197) for more details.
 
-[Huggingface Transformers](http://github.com/huggingface/transformers) seems not to support UniLM for Seq2Seq training and inference. **This repo implements UniLM for Seq2Seq in huggingface transformers style, and is compatible with the huggingface traning and inference pipelines.**
+[Huggingface Transformers](http://github.com/huggingface/transformers) seems not to support UniLM for Seq2Seq training and inference. **This repo implements UniLM for Seq2Seq in huggingface transformers style, and is compatible with the huggingface traning and inference pipelines.** 
+
+Although the UniLM model supports 4 kinds of language modeling, which are left-to-right LM, right-to-left LM, bidirectional LM, and seq-to-seq LM, this repo only supports seq-to-seq LM, since the others are for NLU tasks and easy to be implemented using huggingface BERT directly.
 
 - Datasets & Pretrained Models: See [the official UniLM repo](https://github.com/microsoft/unilm/tree/master/unilm-v1)
 - Also see [Huggingface Pretrained Model](https://huggingface.co/microsoft/unilm-base-cased)
@@ -49,6 +51,25 @@ outputs = model.generate(**inputs)
 
 print(tokenizer.decode(outputs[0]))
 ```
+
+## Components
+
+### Main
+
+- `unilm.modeling_unilm.UniLMForConditionalGeneration` unifies the training and inference of UniLM Seq2Seq.
+- `unilm.modeling_unilm.UniLMTokenizer` is similar to `BertTokenizer`, except:
+    - token_type_ids is configured by `src_type_id` and `tgt_type_id`, which mean the token_type_id of source and target sequence, respectively. According ot the official implementation, `src_type_id` is default to 4, and `tgt_type_id` is default to 5
+    - `get_special_tokens_mask` does not regard the `[SEP]` token at the end of the target sequence as a special token, so that the `[SEP]` will have a chance to be masked by `DataCollatorForUniLMSeq2Seq` during training. This will enable the model to learn when to end the sentence generation. (See [paper](https://arxiv.org/abs/1905.03197) for more detail).
+- `unilm.modeling_unilm.UniLMConfig` is similar to `BertConfig`, except:
+    - Adding `src_type_id`, `tgt_type_id`, `bos_token_id`, `eos_token_id`, and `mask_token_id`
+
+### Others
+
+- `unilm.modeling_unilm.UniLMModel`: Compared to `BertModel`, it supports UniLM seq2seq attention mask:
+
+    ![seq-to-seq-attention-mask](figures/seq-to-seq-attention-mask.png)
+
+- `unilm.modeling_unilm.UniLMSelfAttention`: The attention employed during inference is kind of different from common BertSelfAttention, see this code or official implementation for more detail.
 
 ## Summarization Task
 
@@ -107,3 +128,4 @@ Options:
 - `--compute_rouge`: Whether to compute ROUGE score after decoding. If `output_candidates > 1`, the average ROUGE score of all candidates will be calculated.
 
 P.S. If the `model_recover_path` is `./output_dir/checkpoint-xxx/pytorch_model.bin`, the decoding output file will be `./output_dir/checkpoint-xxx/pytorch_model.bin.decode.txt`
+
