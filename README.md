@@ -69,7 +69,7 @@ print(tokenizer.decode(outputs[0]))
 
     ![seq-to-seq-attention-mask](figures/seq-to-seq-attention-mask.png)
 
-- `unilm.modeling_unilm.UniLMSelfAttention`: The attention employed during inference is kind of different from common BertSelfAttention, see this code or official implementation for more detail.
+- `unilm.modeling_unilm.UniLMSelfAttention`: The attention employed during inference is kind of different from common `BertSelfAttention`, see this code or official implementation for more detail.
 
 ## Summarization Task
 

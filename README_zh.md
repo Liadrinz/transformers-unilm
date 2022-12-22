@@ -12,6 +12,8 @@ UniLM是微软研究院于2019年提出的语言模型，利用了BERT模型架�
 
 [Huggingface Transformers](http://github.com/huggingface/transformers)似乎还不支持用UniLM做Seq2Seq的训练和推断。**该代码用huggingface transformers的风格实现了用UniLM来做Seq2Seq，并兼容huggingface的训练和推理流程。**
 
+UniLM模型支持4种语言建模任务：从左到右单向LM、从右到左单向LM、双向LM和seq-to-seq LM. 该代码仅支持seq-to-seq LM，因为另外三种都是用于NLU任务的，且能直接简单地用huggingface BERT实现。
+
 - 数据集和预训练模型见[UniLM官方仓库](https://github.com/microsoft/unilm/tree/master/unilm-v1)
 - 也可以使用[Huggingface预训练模型](https://huggingface.co/microsoft/unilm-base-cased)
 
@@ -54,6 +56,25 @@ outputs = model.generate(**inputs)
 
 print(tokenizer.decode(outputs[0]))
 ```
+
+## 模块
+
+### 主要
+
+- `unilm.modeling_unilm.UniLMForConditionalGeneration` 同一了UniLM Seq2Seq的训练和推理流程
+- `unilm.modeling_unilm.UniLMTokenizer`和`BertTokenizer`相似，但有以下不同：
+    - token_type_ids可由`src_type_id`和`tgt_type_id`配置，这两项分别表示源序列和目标序列的token_type_id. 根据官方实现，`src_type_id`默认值为4，`tgt_type_id`默认值为5
+    - `get_special_tokens_mask`将位于目标序列结尾的`[SEP]` 视为非特殊token，从而这个`[SEP]`在训练时有机会被`DataCollatorForUniLMSeq2Seq`遮盖掉，这样可以让模型学习何时结束生成。（详见[论文](https://arxiv.org/abs/1905.03197)）
+- `unilm.modeling_unilm.UniLMConfig`与`BertConfig`相似，但有以下不同:
+    - 加入了`src_type_id`, `tgt_type_id`, `bos_token_id`, `eos_token_id`, 和`mask_token_id`
+
+### 其他
+
+- `unilm.modeling_unilm.UniLMModel`: 与`BertModel`相比支持了UniLM seq2seq任务的attention mask:
+
+    ![seq-to-seq-attention-mask](figures/seq-to-seq-attention-mask.png)
+
+- `unilm.modeling_unilm.UniLMSelfAttention`: 推理阶段使用的attention与普通的`BertSelfAttention`不太一样，详见本代码或官方实现。
 
 ## 摘要任务
 
