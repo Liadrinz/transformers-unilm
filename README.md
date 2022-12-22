@@ -6,7 +6,7 @@
 
 UniLM is proposed by MSR in 2019, which utilize the BERT model architecture and MLM task for both text NLU and NLG, and has achieved state-of-the-art performance on abstractive summarization task. See the [paper](https://arxiv.org/abs/1905.03197) for more details.
 
-[Huggingface Transformers](http://github.com/huggingface/transformers) seems not to support UniLM for Seq2Seq training and inference. This repo implements UniLM for Seq2Seq in huggingface transformers style, and is compatible with the huggingface traning and inference pipelines.
+[Huggingface Transformers](http://github.com/huggingface/transformers) seems not to support UniLM for Seq2Seq training and inference. **This repo implements UniLM for Seq2Seq in huggingface transformers style, and is compatible with the huggingface traning and inference pipelines.**
 
 - Datasets & Pretrained Models: See [the official UniLM repo](https://github.com/microsoft/unilm/tree/master/unilm-v1)
 - Also see [Huggingface Pretrained Model](https://huggingface.co/microsoft/unilm-base-cased)
