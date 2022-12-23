@@ -95,6 +95,7 @@ def decode(args):
                 diversity_penalty=args.diversity_penalty,
                 num_beam_groups=args.num_beam_groups,
                 num_return_sequences=args.output_candidates,
+                no_repeat_ngram_size=args.no_repeat_ngram_size,
             )
             for i in range(0, len(output), args.output_candidates):
                 output_buffer = []
@@ -168,6 +169,7 @@ if __name__ == "__main__":
         parser.add_argument("--diversity_penalty", type=float, default=0.0)
         parser.add_argument("--num_beam_groups", type=int, default=1)
         parser.add_argument("--output_candidates", type=int, default=1)
+        parser.add_argument("--no_repeat_ngram_size", type=int, default=None)
         parser.add_argument("--do_decode", action="store_true")
         parser.add_argument("--compute_rouge", action="store_true")
         args = parser.parse_args()
