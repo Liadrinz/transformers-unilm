@@ -66,7 +66,9 @@ def train(args):
 
 
 def decode(args):
-    decode_out_file = f"{args.model_recover_path}.decode.txt" if args.model_recover_path else "decode.txt"
+    decode_out_file = args.decode_out_file
+    if decode_out_file is None:
+        decode_out_file = f"{args.model_recover_path}.decode.txt" if args.model_recover_path else "decode.txt"
     if args.do_decode:
         device = "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
         tokenizer_cls, model_cls = MODELS[args.model_type]
@@ -162,6 +164,7 @@ if __name__ == "__main__":
         args = parser.parse_args()
         train(args)
     elif args.task == "decode":
+        parser.add_argument("--decode_out_file", type=str, default=None)
         parser.add_argument("--beam_size", type=int, default=1)
         parser.add_argument("--do_sample", action="store_true")
         parser.add_argument("--top_p", type=float, default=None)
