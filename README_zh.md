@@ -17,6 +17,28 @@ UniLM模型支持4种语言建模任务：从左到右单向LM、从右到左单
 - 数据集和预训练模型见[UniLM官方仓库](https://github.com/microsoft/unilm/tree/master/unilm-v1)
 - 也可以使用[Huggingface预训练模型](https://huggingface.co/microsoft/unilm-base-cased)
 
+## 推理性能
+
+相比官方实现，推理速度有提升，但显存开销也有增加。
+
+- 场景
+
+    |||
+    |:--|--:|
+    |GPU|1 x RTX 3060 6GB|
+    |Dataset|CNN/DailyMail测试集前1k条|
+    |Max Source Length|448|
+    |Max Target Lenngth|64|
+    |Beam Size|3|
+
+- 推理时间
+
+    |Batch Size|[microsoft/unilm](https://github.com/microsoft/unilm/tree/master/unilm-v1)|Liadrinz/transformers-unilm|加速比|
+    |--:|--:|--:|--:|
+    |1|1070s|1020s|1.05|
+    |2|713s|595s|1.20|
+    |4|623s|388s|1.61|
+
 ## 用法
 
 ### 训练
@@ -50,9 +72,9 @@ from unilm import UniLMTokenizer, UniLMForConditionalGeneration
 tokenizer = UniLMTokenizer.from_pretrained("microsoft/unilm-base-cased")
 model = UniLMForConditionalGeneration.from_pretrained("microsoft/unilm-base-cased")
 
-source = "We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely."
-inputs = tokenizer(source, return_tensors="pt")
-outputs = model.generate(**inputs)
+inputs = tokenizer("Attention is all you need.", return_tensors="pt")
+
+outputs = model.generate(**inputs, max_new_tokens=32, num_return_sequence=5, num_beams=5, no_repeat_ngram_size=3)
 
 print(tokenizer.decode(outputs[0]))
 ```
