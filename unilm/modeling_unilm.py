@@ -3,7 +3,7 @@ import math
 
 from torch import nn
 from torch.nn import CrossEntropyLoss
-from typing import Optional, Union, Tuple, List, Dict, Any, OrderedDict
+from typing import Optional, Union, Tuple, Callable, List, Dict, Any, OrderedDict
 from dataclasses import dataclass
 from transformers.models.bert.modeling_bert import (
     apply_chunking_to_forward,
@@ -25,16 +25,20 @@ from .configuration_unilm import UniLMConfig
 logger = logging.get_logger(__name__)
 
 
-@dataclass
-class UniLMModelOutput(BaseModelOutputWithPoolingAndCrossAttentions):
-    
-    prev_hidden_states: Optional[torch.FloatTensor] = None
+def apply_fn_to_past_key_values(fn: Callable[..., torch.FloatTensor], *past_key_values) -> List[Tuple[torch.FloatTensor]]:
+    new_past_key_values = []
+    for key_value_list in zip(*past_key_values):
+        keys, values = list(zip(*key_value_list))
+        new_key = fn(*keys)
+        new_value = fn(*values)
+        new_past_key_values.append((new_key, new_value))
+    return new_past_key_values
 
 
 @dataclass
 class UniLMSeq2SeqOutput(MaskedLMOutput):
     
-    prev_hidden_states: Optional[torch.FloatTensor] = None
+    past_key_values: Optional[List[Tuple[torch.FloatTensor]]] = None
 
 
 class UniLMSelfAttention(BertSelfAttention):
@@ -43,18 +47,22 @@ class UniLMSelfAttention(BertSelfAttention):
         self,
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.FloatTensor] = None,
-        prev_hidden_states: Optional[torch.FloatTensor] = None,
         head_mask: Optional[torch.FloatTensor] = None,
+        past_key_value: Optional[Tuple[torch.FloatTensor]] = None,
+        use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = False,
     ) -> Tuple[torch.Tensor]:
         mixed_query_layer = self.query(hidden_states)
-        if prev_hidden_states is None:
-            x_states = hidden_states
-        else:
-            x_states = torch.cat((prev_hidden_states, hidden_states), dim=1)
-        key_layer = self.transpose_for_scores(self.key(x_states))
-        value_layer = self.transpose_for_scores(self.value(x_states))
+        
+        key_layer = self.transpose_for_scores(self.key(hidden_states))
+        value_layer = self.transpose_for_scores(self.value(hidden_states))
+        if past_key_value is not None:
+            key_layer = torch.cat((past_key_value[0], key_layer), dim=2)
+            value_layer = torch.cat((past_key_value[1], value_layer), dim=2)
+        
         query_layer = self.transpose_for_scores(mixed_query_layer)
+        
+        past_key_value = (key_layer, value_layer)
 
         # Take the dot product between "query" and "key" to get the raw attention scores.
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
@@ -82,6 +90,8 @@ class UniLMSelfAttention(BertSelfAttention):
 
         outputs = (context_layer, attention_probs) if output_attentions else (context_layer,)
 
+        if use_cache:
+            outputs = outputs + (past_key_value,)
         return outputs
 
 
@@ -95,15 +105,17 @@ class UniLMAttention(BertAttention):
         self,
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.FloatTensor] = None,
-        prev_hidden_states: Optional[torch.FloatTensor] = None,
         head_mask: Optional[torch.FloatTensor] = None,
+        past_key_value: Optional[Tuple[torch.FloatTensor]] = None,
+        use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = False,
     ) -> Tuple[torch.Tensor]:
         self_outputs = self.self(
             hidden_states,
             attention_mask,
-            prev_hidden_states,
             head_mask,
+            past_key_value,
+            use_cache,
             output_attentions,
         )
         attention_output = self.output(self_outputs[0], hidden_states)
@@ -121,16 +133,18 @@ class UniLMLayer(BertLayer):
         self,
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.FloatTensor] = None,
-        prev_hidden_states: Optional[torch.FloatTensor] = None,
         head_mask: Optional[torch.FloatTensor] = None,
+        past_key_value: Optional[Tuple[torch.FloatTensor]] = None,
+        use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = False,
     ) -> Tuple[torch.Tensor]:
         # decoder uni-directional self-attention cached key/values tuple is at positions 1,2
         self_attention_outputs = self.attention(
             hidden_states,
             attention_mask,
-            prev_hidden_states,
             head_mask,
+            past_key_value,
+            use_cache,
             output_attentions=output_attentions,
         )
         attention_output = self_attention_outputs[0]
@@ -155,8 +169,8 @@ class UniLMEncoder(BertEncoder):
         self,
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.FloatTensor] = None,
-        prev_hidden_states: Optional[Tuple[torch.FloatTensor]] = None,
         head_mask: Optional[torch.FloatTensor] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = False,
         output_hidden_states: Optional[bool] = False,
@@ -173,19 +187,17 @@ class UniLMEncoder(BertEncoder):
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
             layer_head_mask = head_mask[i] if head_mask is not None else None
-            history_states = prev_hidden_states[i] if prev_hidden_states is not None else None
+            past_key_value = past_key_values[i] if past_key_values is not None else None
 
             if self.gradient_checkpointing and self.training:
-
-                if use_cache:
-                    logger.warning(
-                        "`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`..."
-                    )
-                    use_cache = False
-
+                logger.warning(
+                    "`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`..."
+                )
+                use_cache = False
+                
                 def create_custom_forward(module):
                     def custom_forward(*inputs):
-                        return module(*inputs, output_attentions)
+                        return module(*inputs, past_key_value, use_cache, output_attentions)
 
                     return custom_forward
 
@@ -193,20 +205,19 @@ class UniLMEncoder(BertEncoder):
                     create_custom_forward(layer_module),
                     hidden_states,
                     attention_mask,
-                    history_states,
                     layer_head_mask,
                 )
             else:
                 layer_outputs = layer_module(
                     hidden_states,
                     attention_mask,
-                    history_states,
                     layer_head_mask,
+                    past_key_value,
+                    use_cache,
                     output_attentions,
                 )
 
             hidden_states = layer_outputs[0]
-            
             if use_cache:
                 next_decoder_cache += (layer_outputs[-1],)
             if output_attentions:
@@ -254,7 +265,7 @@ class UniLMModel(BertModel):
         self.embeddings = UniLMEmbedding(config)
         self.encoder = UniLMEncoder(config)
 
-    def get_extended_attention_mask(self, attention_mask: torch.Tensor, token_type_ids: torch.Tensor, input_shape: Tuple[int], prev_hidden_states_length: int = 0, device = None, dtype: torch.float = None) -> torch.Tensor:
+    def get_extended_attention_mask(self, attention_mask: torch.Tensor, token_type_ids: torch.Tensor, input_shape: Tuple[int], past_length: int = 0, device = None, dtype: torch.float = None) -> torch.Tensor:
         if dtype is None:
             dtype = self.dtype
         if device is None:
@@ -267,7 +278,7 @@ class UniLMModel(BertModel):
             raise ValueError(
                 f"Wrong shape for input_ids (shape {input_shape}) or attention_mask (shape {attention_mask.shape})"
             )
-        if prev_hidden_states_length == 0:
+        if past_length == 0:
             is_src = (token_type_ids == self.config.src_type_id).unsqueeze(-1).to(dtype)
             is_tgt = (token_type_ids == self.config.tgt_type_id).unsqueeze(-1).to(dtype)
             is_s2t = is_src @ is_tgt.transpose(1, 2)  # whether it is source-to-target attention, which should be masked in unilm seq2seq task
@@ -278,9 +289,9 @@ class UniLMModel(BertModel):
             unilm_seq2seq_mask = unilm_seq2seq_mask[:, None, :, :]
             extended_attention_mask = extended_attention_mask * unilm_seq2seq_mask.to(dtype)
         else:
-            extended_attention_mask = torch.ones(attention_mask.size(0), 1, attention_mask.size(1)-prev_hidden_states_length, attention_mask.size(1), device=device)
-            extended_attention_mask[:, :, :, :prev_hidden_states_length] = attention_mask[:, None, None, :prev_hidden_states_length]
-            extended_attention_mask[:, :, :, prev_hidden_states_length:].tril_()
+            extended_attention_mask = torch.ones(attention_mask.size(0), 1, attention_mask.size(1)-past_length, attention_mask.size(1), device=device)
+            extended_attention_mask[:, :, :, :past_length] = attention_mask[:, None, None, :past_length]
+            extended_attention_mask[:, :, :, past_length:].tril_()
         extended_attention_mask = extended_attention_mask.to(dtype=dtype)  # fp16 compatibility
         extended_attention_mask = (1.0 - extended_attention_mask) * torch.finfo(dtype).min
         return extended_attention_mask
@@ -291,21 +302,19 @@ class UniLMModel(BertModel):
         attention_mask: Optional[torch.Tensor] = None,
         token_type_ids: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.Tensor] = None,
-        prev_hidden_states: Optional[Tuple[torch.FloatTensor]] = None,
         head_mask: Optional[torch.Tensor] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
-    ) -> Union[Tuple[torch.Tensor], UniLMModelOutput]:
+    ) -> Union[Tuple[torch.Tensor], BaseModelOutputWithPoolingAndCrossAttentions]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-        use_cache = False
 
         if input_ids is not None and inputs_embeds is not None:
             raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
@@ -319,7 +328,7 @@ class UniLMModel(BertModel):
         batch_size, seq_length = input_shape
         device = input_ids.device if input_ids is not None else inputs_embeds.device
 
-        prev_hidden_states_length = prev_hidden_states[0].shape[1] if prev_hidden_states is not None else 0
+        past_key_values_length = past_key_values[0][0].shape[2] if past_key_values is not None else 0
 
         if attention_mask is None:
             attention_mask = torch.ones(((batch_size, seq_length)), device=device)
@@ -334,7 +343,7 @@ class UniLMModel(BertModel):
 
         # We can provide a self-attention mask of dimensions [batch_size, from_seq_length, to_seq_length]
         # ourselves in which case we just need to make it broadcastable to all heads.
-        extended_attention_mask: torch.Tensor = self.get_extended_attention_mask(attention_mask, token_type_ids, input_shape, prev_hidden_states_length)
+        extended_attention_mask: torch.Tensor = self.get_extended_attention_mask(attention_mask, token_type_ids, input_shape, past_key_values_length)
 
         # Prepare head mask if needed
         # 1.0 in head_mask indicate we keep the head
@@ -352,8 +361,8 @@ class UniLMModel(BertModel):
         encoder_outputs = self.encoder(
             embedding_output,
             attention_mask=extended_attention_mask,
-            prev_hidden_states=prev_hidden_states,
             head_mask=head_mask,
+            past_key_values=past_key_values,
             use_cache=use_cache,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
@@ -365,7 +374,7 @@ class UniLMModel(BertModel):
         if not return_dict:
             return (sequence_output, pooled_output) + encoder_outputs[1:]
 
-        return UniLMModelOutput(
+        return BaseModelOutputWithPoolingAndCrossAttentions(
             last_hidden_state=sequence_output,
             pooler_output=pooled_output,
             past_key_values=encoder_outputs.past_key_values,
@@ -390,19 +399,18 @@ class UniLMForConditionalGeneration(BertForMaskedLM):
         self, outputs: UniLMSeq2SeqOutput, model_kwargs: Dict[str, Any], is_encoder_decoder: bool = False
     ) -> Dict[str, Any]:
         model_kwargs = super()._update_model_kwargs_for_generation(outputs, model_kwargs, is_encoder_decoder)
-        model_kwargs["prev_hidden_states"] = outputs.prev_hidden_states
+        model_kwargs["past_key_values"] = outputs.past_key_values
         return model_kwargs
     
-    def prepare_inputs_for_generation(self, input_ids, attention_mask, prev_hidden_states=None, token_type_ids=None, position_ids=None, **model_kwargs):
+    def prepare_inputs_for_generation(self, input_ids, attention_mask, past=None, token_type_ids=None, position_ids=None, **model_kwargs):
+        # torch.cuda.empty_cache()
         batch_size, seq_length = input_ids.size()
         next_input_ids = input_ids.new_empty(batch_size, 1).fill_(self.config.mask_token_id)
         next_token_type_ids = input_ids.new_empty(batch_size, 1).fill_(self.config.tgt_type_id)
         next_attention_mask = input_ids.new_empty(batch_size, 1).fill_(1)
-        if prev_hidden_states is not None:
-            if token_type_ids is None:
-                token_type_ids = input_ids.new_empty(batch_size, 1).fill_(self.config.tgt_type_id)
+        if past is not None:
             input_ids = torch.cat((input_ids[:, -1:], next_input_ids), dim=-1)
-            token_type_ids = torch.cat((token_type_ids[:, -1:], next_token_type_ids), dim=-1)
+            token_type_ids = input_ids.new_empty(input_ids.size()).fill_(self.config.tgt_type_id)
             next_position_ids = self.prev_position_ids + 1
             position_ids = torch.cat((self.prev_position_ids, next_position_ids), dim=-1)
             attention_mask = torch.cat((attention_mask, next_attention_mask), dim=-1)
@@ -413,7 +421,6 @@ class UniLMForConditionalGeneration(BertForMaskedLM):
             if position_ids is None:
                 position_ids = self.bert.embeddings.position_ids.repeat(batch_size, 1)[:, :seq_length]
                 position_ids[attention_mask == 0] = 0
-                position_ids -= (attention_mask == 1) * (attention_mask == 0).cumsum(dim=-1)
             next_position_ids = attention_mask.sum(dim=-1, keepdims=True)
             input_ids = torch.cat((input_ids, next_input_ids), dim=-1)
             token_type_ids = torch.cat((token_type_ids, next_token_type_ids), dim=-1)
@@ -425,12 +432,12 @@ class UniLMForConditionalGeneration(BertForMaskedLM):
             "attention_mask": attention_mask,
             "token_type_ids": token_type_ids,
             "position_ids": position_ids,
-            "prev_hidden_states": prev_hidden_states,
+            "past_key_values": past,
+            "use_cache": not self.training,
         }
     
     @staticmethod
     def _reorder_cache(past, beam_idx):
-        print(past)
         reordered_past = ()
         for layer_past in past:
             # cached cross_attention states don't have to be reordered -> they are always the same
@@ -445,9 +452,10 @@ class UniLMForConditionalGeneration(BertForMaskedLM):
         attention_mask: Optional[torch.Tensor] = None,
         token_type_ids: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.Tensor] = None,
-        prev_hidden_states: Optional[Tuple[torch.FloatTensor]] = None,
         head_mask: Optional[torch.Tensor] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        use_cache: Optional[bool] = None,
         labels: Optional[torch.Tensor] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
@@ -455,16 +463,19 @@ class UniLMForConditionalGeneration(BertForMaskedLM):
     ) -> Union[Tuple[torch.Tensor], UniLMSeq2SeqOutput]:
        
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-        output_hidden_states = True
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
 
         outputs = self.bert(
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
             position_ids=position_ids,
-            prev_hidden_states=prev_hidden_states,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
+            past_key_values=past_key_values,
+            use_cache=use_cache,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
@@ -478,13 +489,10 @@ class UniLMForConditionalGeneration(BertForMaskedLM):
             loss_fct = CrossEntropyLoss()  # -100 index = padding token
             masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), labels.view(-1))
         
-        if prev_hidden_states is None:
-            prev_hidden_states = tuple([hidden_states[:, :-1, :] for hidden_states in outputs.hidden_states])
-        else:
-            prev_hidden_states = tuple([torch.cat((history_states, hidden_states[:, :-1, :]), dim=1) for history_states, hidden_states in zip(prev_hidden_states, outputs.hidden_states)])
+        past_key_values = apply_fn_to_past_key_values(lambda t: t[:, :, :-1, :], outputs.past_key_values) if use_cache else None
 
         if not return_dict:
-            output = (prediction_scores,) + outputs[2:] + (prev_hidden_states,)
+            output = (prediction_scores,) + outputs[2:] + (past_key_values,)
             return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
         
         return UniLMSeq2SeqOutput(
@@ -492,7 +500,7 @@ class UniLMForConditionalGeneration(BertForMaskedLM):
             logits=prediction_scores,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
-            prev_hidden_states=prev_hidden_states,
+            past_key_values=past_key_values,
         )
 
     def load_state_dict(self, state_dict: OrderedDict[str, torch.Tensor], strict: bool = True, compat: bool = True):
