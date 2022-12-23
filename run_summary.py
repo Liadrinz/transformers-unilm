@@ -74,6 +74,8 @@ def decode(args):
         tokenizer_cls, model_cls = MODELS[args.model_type]
         tokenizer = tokenizer_cls.from_pretrained(args.model_name_or_path)
         model = model_cls.from_pretrained(args.model_name_or_path)
+        if args.fp16:
+            model.half()
         model.to(device)
         collator = DataCollatorForUniLMSeq2Seq(tokenizer, mlm=False)
         if args.model_recover_path:
@@ -153,6 +155,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_tgt_len", type=int, default=256)
     parser.add_argument("--mask_prob", type=float, default=0.7)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--fp16", action="store_true")
     args, _ = parser.parse_known_args()
     if args.task == "train":
         parser.add_argument("--local_rank", type=int, default=-1)
@@ -160,7 +163,6 @@ if __name__ == "__main__":
         parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
         parser.add_argument("--lr", type=float, default=3e-5)
         parser.add_argument("--num_train_epochs", type=int, default=10)
-        parser.add_argument("--fp16", action="store_true")
         args = parser.parse_args()
         train(args)
     elif args.task == "decode":

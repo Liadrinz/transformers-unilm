@@ -18,6 +18,7 @@ python3 -u run_summary.py decode \
     --max_src_len 128 \
     --max_tgt_len 64 \
     --seed 42 \
-    --beam_size 2 \
+    --beam_size 3 \
+    --fp16 \
     --do_decode \
     --compute_rouge
