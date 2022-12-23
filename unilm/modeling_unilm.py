@@ -3,7 +3,7 @@ import math
 
 from torch import nn
 from torch.nn import CrossEntropyLoss
-from typing import Optional, Union, Tuple, List, Dict, Any
+from typing import Optional, Union, Tuple, List, Dict, Any, OrderedDict
 from dataclasses import dataclass
 from transformers.models.bert.modeling_bert import (
     apply_chunking_to_forward,
@@ -375,8 +375,10 @@ class UniLMModel(BertModel):
         )
 
 
-
 class UniLMForConditionalGeneration(BertForMaskedLM):
+    
+    _allowed_missing_keys = ["bert.embeddings.position_ids", "cls.predictions.decoder.bias"]
+    _allowed_unexpected_keys = ["cls.seq_relationship.weight", "cls.seq_relationship.bias"]
     
     config_class = UniLMConfig
     
@@ -492,3 +494,24 @@ class UniLMForConditionalGeneration(BertForMaskedLM):
             attentions=outputs.attentions,
             prev_hidden_states=prev_hidden_states,
         )
+
+    def load_state_dict(self, state_dict: OrderedDict[str, torch.Tensor], strict: bool = True, compat: bool = True):
+        if not strict or not compat:
+            return super().load_state_dict(state_dict, strict)
+        error_msgs: List[str] = []
+        load_return = super().load_state_dict(state_dict, strict=False)
+        missing_keys, unexpected_keys = load_return
+        missing_keys = list(set(missing_keys).difference(self._allowed_missing_keys))
+        unexpected_keys = list(set(unexpected_keys).difference(self._allowed_unexpected_keys))
+        if len(unexpected_keys) > 0:
+            error_msgs.insert(
+                0, 'Unexpected key(s) in state_dict: {}. '.format(
+                    ', '.join('"{}"'.format(k) for k in unexpected_keys)))
+        if len(missing_keys) > 0:
+            error_msgs.insert(
+                0, 'Missing key(s) in state_dict: {}. '.format(
+                    ', '.join('"{}"'.format(k) for k in missing_keys)))
+        if len(error_msgs) > 0:
+            raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(
+                               self.__class__.__name__, "\n\t".join(error_msgs)))
+        return load_return
