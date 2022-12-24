@@ -1,23 +1,29 @@
 # transformers-unilm
 
-[中文版](README_zh.md)
+中文|[English](README_en.md)
 
-## Introduction
+## 介绍
 
-UniLM is proposed by MSR in 2019, which utilize the BERT model architecture and MLM task for both text NLU and NLG, and has achieved state-of-the-art performance on abstractive summarization task. See the [paper](https://arxiv.org/abs/1905.03197) for more details.
+UniLM是微软研究院于2019年提出的语言模型，利用了BERT模型架构和MLM任务，既能做NLU又能做NLG，并且在生成式摘要任务上取得了SOTA的效果。详见[论文](https://arxiv.org/abs/1905.03197)。
 
-[Huggingface Transformers](http://github.com/huggingface/transformers) seems not to support UniLM for Seq2Seq training and inference. **This repo implements UniLM for Seq2Seq in huggingface transformers style, and is compatible with the huggingface traning and inference pipelines.** 
+目前比较流行的UniLM代码有以下版本：
+- https://github.com/microsoft/unilm/tree/master/unilm-v1 (Official)
+- https://github.com/YunwenTechnology/Unilm
 
-Although the UniLM model supports 4 kinds of language modeling, which are left-to-right LM, right-to-left LM, bidirectional LM, and seq-to-seq LM, this repo only supports seq-to-seq LM, since the others are for NLU tasks and easy to be implemented using huggingface BERT directly.
+[Huggingface Transformers](http://github.com/huggingface/transformers)似乎还不支持用UniLM做Seq2Seq的训练和推断。**该代码用huggingface transformers的风格实现了用UniLM来做Seq2Seq，并兼容huggingface的训练和推理流程。**
 
-- Datasets & Pretrained Models: See [the official UniLM repo](https://github.com/microsoft/unilm/tree/master/unilm-v1)
-- Also see [Huggingface Pretrained Model](https://huggingface.co/microsoft/unilm-base-cased)
+UniLM模型支持4种语言建模任务：从左到右单向LM、从右到左单向LM、双向LM和seq-to-seq LM. 该代码仅支持seq-to-seq LM，因为另外三种都是用于NLU任务的，且能直接简单地用huggingface BERT实现。
 
-## Usage
+- 数据集和预训练模型见[UniLM官方仓库](https://github.com/microsoft/unilm/tree/master/unilm-v1)
+- 也可以使用[Huggingface预训练模型](https://huggingface.co/microsoft/unilm-base-cased)
+- [微博新闻摘要数据集](https://pan.baidu.com/s/1-OxrZRm_Q7ejfU-mtngBWg?pwd=85t5)
+- [中文新闻摘要fine-tuned模型](https://huggingface.co/Yuang/unilm-base-chinese-news-sum)
+
+## 用法
 
 ### Quick Start
 
-Doing Chinese news article summarization
+中文新闻摘要任务
 
 ```sh
 pip install git+https://github.com/Liadrinz/transformers-unilm
@@ -34,7 +40,7 @@ news_article = (
 )
 
 tokenizer = UniLMTokenizer.from_pretrained("Yuang/unilm-base-chinese-news-sum")
-model = UniLMForConditionalGeneration.from_pretrained("Yuang/unilm-base-chinese-news-sum")
+model = UniLMForConditionalGeneration.from_pretrained("Yuang/unilm-base-chinese-news-sum") # 在微博新闻摘要数据上fine-tune过的模型
 
 inputs = tokenizer(news_article, return_tensors="pt")
 output_ids = model.generate(**inputs, max_new_tokens=16)
@@ -44,7 +50,7 @@ news_summary = output_text.split("[SEP]")[1].strip()
 print(news_summary)
 ```
 
-### Train
+### 训练
 
 ```python
 from unilm import UniLMTokenizer, UniLMForConditionalGeneration
@@ -67,7 +73,7 @@ print(outputs.loss)
 print(outputs.logits)
 ```
 
-### Inference
+### 解码
 
 ```python
 from unilm import UniLMTokenizer, UniLMForConditionalGeneration
@@ -82,30 +88,30 @@ outputs = model.generate(**inputs, max_new_tokens=32, num_return_sequence=5, num
 print(tokenizer.decode(outputs[0]))
 ```
 
-## Components
+## 模块
 
-### Main
+### 主要
 
-- `unilm.modeling_unilm.UniLMForConditionalGeneration` unifies the training and inference of UniLM Seq2Seq.
-- `unilm.modeling_unilm.UniLMTokenizer` is similar to `BertTokenizer`, except:
-    - token_type_ids is configured by `src_type_id` and `tgt_type_id`, which mean the token_type_id of source and target sequence, respectively. According ot the official implementation, `src_type_id` is default to 4, and `tgt_type_id` is default to 5
-    - `get_special_tokens_mask` does not regard the `[SEP]` token at the end of the target sequence as a special token, so that the `[SEP]` will have a chance to be masked by `DataCollatorForUniLMSeq2Seq` during training. This will enable the model to learn when to end the sentence generation. (See [paper](https://arxiv.org/abs/1905.03197) for more detail).
-- `unilm.modeling_unilm.UniLMConfig` is similar to `BertConfig`, except:
-    - Adding `src_type_id`, `tgt_type_id`, `bos_token_id`, `eos_token_id`, and `mask_token_id`
+- `unilm.modeling_unilm.UniLMForConditionalGeneration` 同一了UniLM Seq2Seq的训练和推理流程
+- `unilm.modeling_unilm.UniLMTokenizer`和`BertTokenizer`相似，但有以下不同：
+    - token_type_ids可由`src_type_id`和`tgt_type_id`配置，这两项分别表示源序列和目标序列的token_type_id. 根据官方实现，`src_type_id`默认值为4，`tgt_type_id`默认值为5
+    - `get_special_tokens_mask`将位于目标序列结尾的`[SEP]` 视为非特殊token，从而这个`[SEP]`在训练时有机会被`DataCollatorForUniLMSeq2Seq`遮盖掉，这样可以让模型学习何时结束生成。（详见[论文](https://arxiv.org/abs/1905.03197)）
+- `unilm.modeling_unilm.UniLMConfig`与`BertConfig`相似，但有以下不同:
+    - 加入了`src_type_id`, `tgt_type_id`, `bos_token_id`, `eos_token_id`, 和`mask_token_id`
 
-### Others
+### 其他
 
-- `unilm.modeling_unilm.UniLMModel`: Compared to `BertModel`, it supports UniLM seq2seq attention mask:
+- `unilm.modeling_unilm.UniLMModel`: 与`BertModel`相比支持了UniLM seq2seq任务的attention mask:
 
     ![seq-to-seq-attention-mask](figures/seq-to-seq-attention-mask.png)
 
-- `unilm.modeling_unilm.UniLMSelfAttention`: The attention employed during inference is kind of different from common `BertSelfAttention`, see this code or official implementation for more detail.
+- `unilm.modeling_unilm.UniLMSelfAttention`: 推理阶段使用的attention与普通的`BertSelfAttention`不太一样，详见本代码或官方实现。
 
-## Summarization Task
+## 摘要任务
 
-See `examples/summarization`
+另详见`train_summary.sh`和`decode_summary.sh`
 
-### Train
+### 训练
 
 ```sh
 python3 -m torch.distributed.launch --nproc_per_node 4 run_summary.py train \
@@ -125,12 +131,12 @@ python3 -m torch.distributed.launch --nproc_per_node 4 run_summary.py train \
     --fp16
 ```
 
-Options:
+参数说明:
 
-- `--model_name_or_path` is the local or remote path of the huggingface pretrained model
-- `--mask_prob`: the probability of the target token to be masked during fine-tuning
+- `--model_name_or_path`是huggingface预训练模型的路径（本地或远程路径）
+- `--mask_prob`: fine-tuning时target中的token被mask的概率
 
-### Decoding
+### 解码
 
 ```sh
 python3 -u run_summary.py decode \
@@ -149,33 +155,33 @@ python3 -u run_summary.py decode \
     --compute_rouge
 ```
 
-Options:
+参数说明:
 
-- `--model_recover_path` is the path of the fine-tuned model
-- `--beam_size` is the beam size of beam search
-- `--output_candidates` specifies how many candidates of beam search to be output to file, which should be larger than 0 and no more than the `beam_size`
-- `--do_decode`: Whether to do decoding
-- `--compute_rouge`: Whether to compute ROUGE score after decoding. If `output_candidates > 1`, the average ROUGE score of all candidates will be calculated.
+- `--model_recover_path`是fine-tuned模型的路径
+- `--beam_size`是beam search中beam的大小
+- `--output_candidates`指定输出多少个beam search的候选结果，必须大于0小于`beam_size`
+- `--do_decode`: 是否进行解码
+- `--compute_rouge`: 解码后是否计算ROUGE分数。如果`output_candidates > 1`，计算的是所有候选结果ROUGE的平均值。
 
-P.S. If the `model_recover_path` is `./output_dir/checkpoint-xxx/pytorch_model.bin`, the decoding output file will be `./output_dir/checkpoint-xxx/pytorch_model.bin.decode.txt`
+P.S. 如果`model_recover_path`是`./output_dir/checkpoint-xxx/pytorch_model.bin`，解码结果会输出到`./output_dir/checkpoint-xxx/pytorch_model.bin.decode.txt`
 
-## Inference Performance
+## 推理性能
 
-Inference speeds up compared to official implementaion, but GPU usage also increases.
+相比官方实现，推理速度有提升，但显存开销也有增加。
 
-- Settings
+- 场景
 
     |||
     |:--|--:|
     |GPU|1 x RTX 3060 6GB|
-    |Dataset|first 1k of CNN/DailyMail testset|
+    |Dataset|CNN/DailyMail测试集前1k条|
     |Max Source Length|448|
-    |Max Target Length|64|
+    |Max Target Lenngth|64|
     |Beam Size|3|
 
-- Inference Time
+- 推理时间
 
-    |Batch Size|[microsoft/unilm](https://github.com/microsoft/unilm/tree/master/unilm-v1)|Liadrinz/transformers-unilm|speed-up ratio|
+    |Batch Size|[microsoft/unilm](https://github.com/microsoft/unilm/tree/master/unilm-v1)|Liadrinz/transformers-unilm|加速比|
     |--:|--:|--:|--:|
     |1|1070s|1020s|1.05|
     |2|713s|595s|1.20|
