@@ -13,7 +13,9 @@ Although the UniLM model supports 4 kinds of language modeling, which are left-t
 - Datasets & Pretrained Models: See [the official UniLM repo](https://github.com/microsoft/unilm/tree/master/unilm-v1)
 - Also see [Huggingface Pretrained Model](https://huggingface.co/microsoft/unilm-base-cased)
 
-## Installation
+## Inference Performance
+
+Inference speeds up compared to official implementaion, but CUDA memory also increases.
 
 ```sh
 python setup.py install

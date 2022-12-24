@@ -20,4 +20,5 @@ python3 -u run_summary.py decode \
     --seed 42 \
     --beam_size 3 \
     --fp16 \
+    --do_decode \
     --compute_rouge
