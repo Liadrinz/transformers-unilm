@@ -15,7 +15,7 @@ Although the UniLM model supports 4 kinds of language modeling, which are left-t
 
 ## Inference Performance
 
-Inference speeds up compared to official implementaion, but GPU usage also increases.
+Inference speeds up compared to official implementaion, but CUDA memory also increases.
 
 - Settings
 
