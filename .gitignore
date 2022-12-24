@@ -2,5 +2,10 @@ __pycache__
 .vscode
 output_dir
 data
+build
+dist
 
+*.egg-info
 *.pyc
+*.log
+*.out

@@ -45,7 +45,8 @@ def train(args):
         num_train_epochs=args.num_train_epochs,
         no_cuda=args.no_cuda,
         fp16=args.fp16,
-        save_strategy=IntervalStrategy.EPOCH,
+        save_strategy=IntervalStrategy.STEPS,
+        save_steps=2700,
         logging_strategy=IntervalStrategy.STEPS,
         logging_steps=1,
         local_rank=args.local_rank,
@@ -74,6 +75,8 @@ def decode(args):
         tokenizer_cls, model_cls = MODELS[args.model_type]
         tokenizer = tokenizer_cls.from_pretrained(args.model_name_or_path)
         model = model_cls.from_pretrained(args.model_name_or_path)
+        if args.fp16:
+            model.half()
         model.to(device)
         collator = DataCollatorForUniLMSeq2Seq(tokenizer, mlm=False)
         if args.model_recover_path:
@@ -123,12 +126,12 @@ def decode(args):
         for hypothesis in zip(*hypothesis_candidates):
             
             # # pip install rouge-chinese
-            # rouge = Rouge(metrics=["rouge-1", "rouge-2", "rouge-l"])
-            # scores = rouge.get_scores(hypothesis, references, avg=True)
+            rouge = Rouge(metrics=["rouge-1", "rouge-2", "rouge-l"])
+            scores = rouge.get_scores(list(hypothesis), [" ".join(list(ref)) for ref in references], avg=True)
             
             # pip install py-rouge
-            rouge = Rouge(metrics=["rouge-n", "rouge-l"], max_n=2, length_limit=False, apply_avg=True)
-            scores = rouge.get_scores(list(hypothesis), references)
+            # rouge = Rouge(metrics=["rouge-n", "rouge-l"], max_n=2, length_limit=False, apply_avg=True)
+            # scores = rouge.get_scores(list(hypothesis), references)
             
             for k1 in avg_scores:
                 for k2 in avg_scores[k1]:
@@ -153,6 +156,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_tgt_len", type=int, default=256)
     parser.add_argument("--mask_prob", type=float, default=0.7)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--fp16", action="store_true")
     args, _ = parser.parse_known_args()
     if args.task == "train":
         parser.add_argument("--local_rank", type=int, default=-1)
@@ -160,7 +164,6 @@ if __name__ == "__main__":
         parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
         parser.add_argument("--lr", type=float, default=3e-5)
         parser.add_argument("--num_train_epochs", type=int, default=10)
-        parser.add_argument("--fp16", action="store_true")
         args = parser.parse_args()
         train(args)
     elif args.task == "decode":

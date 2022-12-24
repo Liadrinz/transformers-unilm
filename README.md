@@ -13,27 +13,17 @@ Although the UniLM model supports 4 kinds of language modeling, which are left-t
 - Datasets & Pretrained Models: See [the official UniLM repo](https://github.com/microsoft/unilm/tree/master/unilm-v1)
 - Also see [Huggingface Pretrained Model](https://huggingface.co/microsoft/unilm-base-cased)
 
-## Inference Performance
+## Installation
 
-Inference speeds up compared to official implementaion, but GPU usage also increases.
+```sh
+python setup.py install
+```
 
-- Settings
+or
 
-    |||
-    |:--|--:|
-    |GPU|1 x RTX 3060 6GB|
-    |Dataset|first 1k of CNN/DailyMail testset|
-    |Max Source Length|448|
-    |Max Target Length|64|
-    |Beam Size|3|
-
-- Inference Time
-
-    |Batch Size|[microsoft/unilm](https://github.com/microsoft/unilm/tree/master/unilm-v1)|Liadrinz/transformers-unilm|speed-up ratio|
-    |--:|--:|--:|--:|
-    |1|1070s|1020s|1.05|
-    |2|713s|595s|1.20|
-    |4|623s|388s|1.61|
+```sh
+pip3 install -e .
+```
 
 ## Usage
 
@@ -96,7 +86,7 @@ print(tokenizer.decode(outputs[0]))
 
 ## Summarization Task
 
-See also `train_summary.sh` and `decode_summary.sh`
+See `examples/summarization`
 
 ### Train
 
@@ -151,3 +141,25 @@ Options:
 - `--compute_rouge`: Whether to compute ROUGE score after decoding. If `output_candidates > 1`, the average ROUGE score of all candidates will be calculated.
 
 P.S. If the `model_recover_path` is `./output_dir/checkpoint-xxx/pytorch_model.bin`, the decoding output file will be `./output_dir/checkpoint-xxx/pytorch_model.bin.decode.txt`
+
+## Inference Performance
+
+Inference speeds up compared to official implementaion, but GPU usage also increases.
+
+- Settings
+
+    |||
+    |:--|--:|
+    |GPU|1 x RTX 3060 6GB|
+    |Dataset|first 1k of CNN/DailyMail testset|
+    |Max Source Length|448|
+    |Max Target Length|64|
+    |Beam Size|3|
+
+- Inference Time
+
+    |Batch Size|[microsoft/unilm](https://github.com/microsoft/unilm/tree/master/unilm-v1)|Liadrinz/transformers-unilm|speed-up ratio|
+    |--:|--:|--:|--:|
+    |1|1070s|1020s|1.05|
+    |2|713s|595s|1.20|
+    |4|623s|388s|1.61|
