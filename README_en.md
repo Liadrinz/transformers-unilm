@@ -18,11 +18,13 @@ Although the UniLM model supports 4 kinds of language modeling, which are left-t
 
 ### Quick Start
 
-Doing Chinese news article summarization
+Installation
 
 ```sh
 pip install git+https://github.com/Liadrinz/transformers-unilm
 ```
+
+Doing Chinese news article summarization
 
 ```py
 from unilm import UniLMTokenizer, UniLMForConditionalGeneration
@@ -45,85 +47,25 @@ news_summary = output_text.split("[SEP]")[1].strip()
 print(news_summary)
 ```
 
-### Train
+### Training
 
-```python
-from unilm import UniLMTokenizer, UniLMForConditionalGeneration
-from unilm.collator import DataCollatorForUniLMSeq2Seq
-
-tokenizer = UniLMTokenizer.from_pretrained("microsoft/unilm-base-cased")
-model = UniLMForConditionalGeneration.from_pretrained("microsoft/unilm-base-cased")
-
-source = "We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely."
-target = "New simple network architecture Transformer is proposed."
-inputs = tokenizer(source, target)
-
-collator = DataCollatorForUniLMSeq2Seq(tokenizer, mlm=True, mlm_probability=0.7)
-batch = collator([inputs])
-print(batch["input_ids"])
-print(batch["labels"])
-
-outputs = model(**batch)
-print(outputs.loss)
-print(outputs.logits)
-```
-
-### Inference
-
-```python
-from unilm import UniLMTokenizer, UniLMForConditionalGeneration
-
-tokenizer = UniLMTokenizer.from_pretrained("microsoft/unilm-base-cased")
-model = UniLMForConditionalGeneration.from_pretrained("microsoft/unilm-base-cased")
-
-inputs = tokenizer("Attention is all you need.", return_tensors="pt")
-
-outputs = model.generate(**inputs, max_new_tokens=32, num_return_sequence=5, num_beams=5, no_repeat_ngram_size=3)
-
-print(tokenizer.decode(outputs[0]))
-```
-
-## Components
-
-### Main
-
-- `unilm.modeling_unilm.UniLMForConditionalGeneration` unifies the training and inference of UniLM Seq2Seq.
-- `unilm.modeling_unilm.UniLMTokenizer` is similar to `BertTokenizer`, except:
-    - token_type_ids is configured by `src_type_id` and `tgt_type_id`, which mean the token_type_id of source and target sequence, respectively. According ot the official implementation, `src_type_id` is default to 4, and `tgt_type_id` is default to 5
-    - `get_special_tokens_mask` does not regard the `[SEP]` token at the end of the target sequence as a special token, so that the `[SEP]` will have a chance to be masked by `DataCollatorForUniLMSeq2Seq` during training. This will enable the model to learn when to end the sentence generation. (See [paper](https://arxiv.org/abs/1905.03197) for more detail).
-- `unilm.modeling_unilm.UniLMConfig` is similar to `BertConfig`, except:
-    - Adding `src_type_id`, `tgt_type_id`, `bos_token_id`, `eos_token_id`, and `mask_token_id`
-
-### Others
-
-- `unilm.modeling_unilm.UniLMModel`: Compared to `BertModel`, it supports UniLM seq2seq attention mask:
-
-    ![seq-to-seq-attention-mask](figures/seq-to-seq-attention-mask.png)
-
-- `unilm.modeling_unilm.UniLMSelfAttention`: The attention employed during inference is kind of different from common `BertSelfAttention`, see this code or official implementation for more detail.
-
-## Summarization Task
-
-See `examples/summarization`
-
-### Train
+Using Shell
 
 ```sh
-python3 -m torch.distributed.launch --nproc_per_node 4 run_summary.py train \
-    --model_type unilm \
+unilm_train \
     --model_name_or_path microsoft/unilm-base-cased \
     --batch_size 16 \
     --src_file train.src \
     --tgt_file train.tgt \
     --max_src_len 448 \
     --max_tgt_len 64 \
-    --seed 42 \
-    --output_dir ./output_dir \
+    --mask_prob 0.7 \
+    --seed 42\
+    --fp16 \
+    --output_dir /path/to/checkpoints/ \
     --gradient_accumulation_steps 2 \
-    --lr 0.00003 \
-    --num_train_epochs 10 \
-    --mask_prob=0.7 \
-    --fp16
+    --lr 1e-4 \
+    --num_train_epochs 3
 ```
 
 Options:
@@ -131,23 +73,94 @@ Options:
 - `--model_name_or_path` is the local or remote path of the huggingface pretrained model
 - `--mask_prob`: the probability of the target token to be masked during fine-tuning
 
-### Decoding
+Using Python Transformers
+
+```python
+from tqdm import tqdm
+
+from unilm import UniLMTokenizer, UniLMForConditionalGeneration
+from unilm.collator import DataCollatorForUniLMSeq2Seq
+from unilm.data_utils import Seq2SeqDataset
+
+from transformers.trainer_seq2seq import Seq2SeqTrainer
+from transformers.training_args import TrainingArguments
+
+
+tokenizer = UniLMTokenizer.from_pretrained("microsoft/unilm-base-cased")
+dataset = Seq2SeqDataset(tokenizer, "train.src", "train.tgt", max_src_len=448, max_tgt_len=64)
+collator = DataCollatorForUniLMSeq2Seq(tokenizer, mlm=True, mlm_probability=0.7)
+model = UniLMForConditionalGeneration.from_pretrained("microsoft/unilm-base-cased")
+training_args = TrainingArguments(
+    output_dir="output_dir",
+    do_train=True,
+    per_device_train_batch_size=4,
+    gradient_accumulation_steps=2,
+    learning_rate=1e-4,
+    num_train_epochs=3,
+)
+trainer = Seq2SeqTrainer(
+    model,
+    args=training_args,
+    data_collator=collator,
+    train_dataset=dataset,
+    tokenizer=tokenizer,
+)
+trainer.train()
+```
+
+Using PyTorch
+
+```python
+from tqdm import tqdm
+
+from unilm import UniLMTokenizer, UniLMForConditionalGeneration
+from unilm.collator import DataCollatorForUniLMSeq2Seq
+from unilm.data_utils import Seq2SeqDataset
+
+from torch.utils.data.dataloader import DataLoader
+from torch.optim import AdamW
+
+
+tokenizer = UniLMTokenizer.from_pretrained("microsoft/unilm-base-cased")
+dataset = Seq2SeqDataset(tokenizer, "train.src", "train.tgt", max_src_len=448, max_tgt_len=64)
+collator = DataCollatorForUniLMSeq2Seq(tokenizer, mlm=True, mlm_probability=0.7)
+dataloader = DataLoader(dataset, batch_size=16, collate_fn=collator)
+model = UniLMForConditionalGeneration.from_pretrained("microsoft/unilm-base-cased")
+model.cuda()
+
+optimizer = AdamW(model.parameters(), lr=1e-4)
+
+for i_epoch in range(3):
+    for batch in tqdm(dataloader):
+        batch = {k: v.cuda() for k, v in batch.items()}
+        outputs = model(**batch)
+        loss = outputs.loss
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        print(f"loss: {loss.item()}")
+```
+
+### Inference
+
+Using Shell
 
 ```sh
-python3 -u run_summary.py decode \
-    --model_type unilm \
+unilm_decode \
     --model_name_or_path microsoft/unilm-base-cased \
-    --model_recover_path ./output_dir/checkpoint-xxx/pytorch_model.bin \
-    --batch_size 16 \
+    --model_recover_path /path/to/checkpoints/checkpoint-xxx/pytorch.model.bin \
+    --batch_size 64 \
     --src_file test.src \
-    --tgt_file test.tgt \
     --max_src_len 448 \
     --max_tgt_len 64 \
     --seed 42 \
-    --beam_size 2 \
-    --output_candidates 1\
-    --do_decode \
-    --compute_rouge
+    --fp16 \
+    --beam_size 3 \
+    --length_penalty 0.0 \
+    --diversity_penalty 0.0 \
+    --num_beam_groups 1 \
+    --output_candidates 1 \
+    --no_repeat_ngram_size 3
 ```
 
 Options:
@@ -159,6 +172,41 @@ Options:
 - `--compute_rouge`: Whether to compute ROUGE score after decoding. If `output_candidates > 1`, the average ROUGE score of all candidates will be calculated.
 
 P.S. If the `model_recover_path` is `./output_dir/checkpoint-xxx/pytorch_model.bin`, the decoding output file will be `./output_dir/checkpoint-xxx/pytorch_model.bin.decode.txt`
+
+Using Python
+
+```python
+from unilm import UniLMTokenizer, UniLMForConditionalGeneration
+
+
+# English
+article = (
+    "The Leaning Tower of Pisa has straightened itself by 1.6 inches over the last two decades, "
+    "according to a recent study. Italy’s famous attraction is known for looking like it is about to fall over with its almost four-degree tilt. "
+    "But the slant has long worried engineers, and historians worked on stabilising the tower for 11 years. By the time the project ended in 2001, the Tuscan building had straightened by 15 inches.")
+tokenizer = UniLMTokenizer.from_pretrained("microsoft/unilm-base-cased")
+model = UniLMForConditionalGeneration.from_pretrained("microsoft/unilm-base-cased")
+inputs = tokenizer(article, return_tensors="pt")
+output_ids = model.generate(**inputs, max_new_tokens=16)
+output_text = tokenizer.decode(output_ids[0])
+summary = output_text.split("[SEP]")[1].strip()
+print(summary)
+
+
+# Chinese
+article = (
+    "12月23日，河北石家庄。8岁哥哥轻车熟路哄睡弟弟，姿势标准动作熟练。"
+    "妈妈杨女士表示：哥哥很喜欢弟弟，因为心思比较细，自己平时带孩子的习惯他都会跟着学习，"
+    "哄睡孩子也都会争着来，技巧很娴熟，两人在一块很有爱，自己感到很幸福，平时帮了自己很大的忙，感恩有这么乖的宝宝。"
+)
+tokenizer = UniLMTokenizer.from_pretrained("peterchou/unilm-chinese-base")
+model = UniLMForConditionalGeneration.from_pretrained("peterchou/unilm-chinese-base")
+inputs = tokenizer(article, return_tensors="pt")
+output_ids = model.generate(**inputs, max_new_tokens=32, num_beams=5)
+output_text = tokenizer.decode(output_ids[0])
+summary = output_text.split("[SEP]")[1].strip()
+print(summary)
+```
 
 ## Inference Performance
 

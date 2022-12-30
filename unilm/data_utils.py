@@ -1,11 +1,8 @@
 from torch.utils.data.dataset import Dataset
-from torch.utils.data.dataloader import DataLoader
 from transformers.tokenization_utils import PreTrainedTokenizer
-from unilm import UniLMTokenizer
-from unilm.collator import DataCollatorForUniLMSeq2Seq
 
 
-class SummaryDataset(Dataset):
+class Seq2SeqDataset(Dataset):
     
     def __init__(self, tokenizer: PreTrainedTokenizer, src_file, tgt_file, max_src_len=448, max_tgt_len=64, inference=False) -> None:
         super().__init__()
@@ -41,14 +38,3 @@ class SummaryDataset(Dataset):
     
     def __len__(self):
         return len(self.srcs)
-
-
-if __name__ == "__main__":
-    tokenizer = UniLMTokenizer.from_pretrained("unilm-base-cased")
-    dataset = SummaryDataset(
-        tokenizer, "gigaword-10k/train.src", "gigaword-10k/train.tgt")
-    collator = DataCollatorForUniLMSeq2Seq(tokenizer, mlm_probability=0.7, return_tensors="pt")
-    dataloader = DataLoader(dataset, batch_size=4, collate_fn=collator)
-    for batch in dataloader:
-        print((batch["input_ids"] == 103).sum(dim=-1))
-        break

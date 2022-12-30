@@ -14,7 +14,8 @@ from transformers.trainer_utils import IntervalStrategy
 from transformers.training_args import TrainingArguments
 
 from data_utils import SummaryDataset
-from unilm import UniLMForConditionalGeneration, UniLMTokenizer, DataCollatorForUniLMSeq2Seq
+from unilm import UniLMForConditionalGeneration, UniLMTokenizer
+from unilm.collator import DataCollatorForUniLMSeq2Seq
 
 
 MODELS: Dict[str, Tuple[PreTrainedTokenizer, PreTrainedModel]] = {

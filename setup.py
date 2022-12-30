@@ -8,4 +8,10 @@ setup(
         "transformers",
         "torch",
     ],
+    entry_points={
+        "console_scripts": [
+            "unilm_train=unilm.procedures:run_train",
+            "unilm_decode=unilm.procedures:run_decode",
+        ]
+    }
 )
