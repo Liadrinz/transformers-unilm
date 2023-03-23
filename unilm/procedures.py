@@ -18,6 +18,8 @@ from . import (
     UniLMForConditionalGeneration,
     UniLMTokenizerRoberta,
     UniLMForConditionalGenerationRoberta,
+    UniLMTokenizerXLMRoberta,
+    UniLMForConditionalGenerationXLMRoberta,
 )
 from .collator import DataCollatorForUniLMSeq2Seq
 from .data_utils import Seq2SeqDataset
@@ -26,6 +28,7 @@ from .data_utils import Seq2SeqDataset
 BASE_MODELS: Dict[str, Tuple[Type[PreTrainedTokenizer], Type[UniLMForConditionalGenerationBase]]] = {
     "bert": (UniLMTokenizer, UniLMForConditionalGeneration),
     "roberta": (UniLMTokenizerRoberta, UniLMForConditionalGenerationRoberta),
+    "xlm-roberta": (UniLMTokenizerXLMRoberta, UniLMForConditionalGenerationXLMRoberta),
 }
 
 
