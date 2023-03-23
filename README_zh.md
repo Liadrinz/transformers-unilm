@@ -1,30 +1,35 @@
 # transformers-unilm
 
-[中文](README.md) | English
+中文 | [English](README_en.md)
 
-## Introduction
+## 介绍
 
-UniLM is proposed by MSR in 2019, which utilize the BERT model architecture and MLM task for both text NLU and NLG, and has achieved state-of-the-art performance on abstractive summarization task. See the [paper](https://arxiv.org/abs/1905.03197) for more details.
+UniLM是微软研究院于2019年提出的语言模型，利用了BERT模型架构和MLM任务，既能做NLU又能做NLG，并且在生成式摘要任务上取得了SOTA的效果。详见[论文](https://arxiv.org/abs/1905.03197)。
 
-[Huggingface Transformers](http://github.com/huggingface/transformers) seems not to support UniLM for Seq2Seq training and inference. **This repo implements UniLM for Seq2Seq in huggingface transformers style, and is compatible with the huggingface traning and inference pipelines.** 
+目前比较流行的UniLM代码有以下版本：
+- https://github.com/microsoft/unilm/tree/master/unilm-v1 (Official)
+- https://github.com/YunwenTechnology/Unilm
 
-Although the UniLM model supports 4 kinds of language modeling, which are left-to-right LM, right-to-left LM, bidirectional LM, and seq-to-seq LM, this repo only supports seq-to-seq LM, since the others are for NLU tasks and easy to be implemented using huggingface BERT directly.
+[Huggingface Transformers](http://github.com/huggingface/transformers)似乎还不支持用UniLM做Seq2Seq的训练和推断。**该代码用huggingface transformers的风格实现了用UniLM来做Seq2Seq，并兼容huggingface的训练和推理流程。**
 
-- Datasets & Pretrained Models: See [the official UniLM repo](https://github.com/microsoft/unilm/tree/master/unilm-v1)
-- Also see [Huggingface Pretrained Model](https://huggingface.co/microsoft/unilm-base-cased)
-- [Weibo Chinese News Article Summarization Dataset](https://pan.baidu.com/s/1-OxrZRm_Q7ejfU-mtngBWg?pwd=85t5)
+UniLM模型支持4种语言建模任务：从左到右单向LM、从右到左单向LM、双向LM和seq-to-seq LM. 该代码仅支持seq-to-seq LM，因为另外三种都是用于NLU任务的，且能直接简单地用huggingface BERT实现。
 
-## Usage
+- 数据集和预训练模型见[UniLM官方仓库](https://github.com/microsoft/unilm/tree/master/unilm-v1)
+- 也可以使用[Huggingface预训练模型](https://huggingface.co/microsoft/unilm-base-cased)
+- [微博新闻摘要数据集](https://pan.baidu.com/s/1-OxrZRm_Q7ejfU-mtngBWg?pwd=85t5)
+- [中文新闻摘要fine-tuned模型](https://huggingface.co/Yuang/unilm-base-chinese-news-sum)
+
+## 用法
 
 ### Quick Start
 
-Installation
+安装
 
 ```sh
 pip install git+https://github.com/Liadrinz/transformers-unilm
 ```
 
-Doing Chinese news article summarization
+中文新闻摘要生成
 
 ```py
 from unilm import UniLMTokenizer, UniLMForConditionalGeneration
@@ -37,7 +42,7 @@ news_article = (
 )
 
 tokenizer = UniLMTokenizer.from_pretrained("Yuang/unilm-base-chinese-news-sum")
-model = UniLMForConditionalGeneration.from_pretrained("Yuang/unilm-base-chinese-news-sum")  # fine-tuned on weibo news article summarization dataset
+model = UniLMForConditionalGeneration.from_pretrained("Yuang/unilm-base-chinese-news-sum") # 在微博新闻摘要数据上fine-tune过的模型
 
 inputs = tokenizer(news_article, return_tensors="pt")
 output_ids = model.generate(**inputs, max_new_tokens=16)
@@ -47,9 +52,9 @@ news_summary = output_text.split("[SEP]")[1].strip()
 print(news_summary)
 ```
 
-### Training
+### 训练
 
-Using Shell
+命令行训练
 
 ```sh
 unilm_train \
@@ -68,12 +73,12 @@ unilm_train \
     --num_train_epochs 3
 ```
 
-Options:
+参数说明:
 
-- `--model_name_or_path` is the local or remote path of the huggingface pretrained model
-- `--mask_prob`: the probability of the target token to be masked during fine-tuning
+- `--model_name_or_path`是huggingface预训练模型的路径（本地或远程路径）
+- `--mask_prob`: fine-tuning时target中的token被mask的概率
 
-Using Python Transformers
+代码训练-Transformers
 
 ```python
 from tqdm import tqdm
@@ -108,7 +113,7 @@ trainer = Seq2SeqTrainer(
 trainer.train()
 ```
 
-Using PyTorch
+代码训练-自定义训练过程
 
 ```python
 from tqdm import tqdm
@@ -141,9 +146,9 @@ for i_epoch in range(3):
         print(f"loss: {loss.item()}")
 ```
 
-### Inference
+### 解码
 
-Using Shell
+命令行解码
 
 ```sh
 unilm_decode \
@@ -163,17 +168,17 @@ unilm_decode \
     --no_repeat_ngram_size 3
 ```
 
-Options:
+参数说明:
 
-- `--model_recover_path` is the path of the fine-tuned model
-- `--beam_size` is the beam size of beam search
-- `--output_candidates` specifies how many candidates of beam search to be output to file, which should be larger than 0 and no more than the `beam_size`
-- `--do_decode`: Whether to do decoding
-- `--compute_rouge`: Whether to compute ROUGE score after decoding. If `output_candidates > 1`, the average ROUGE score of all candidates will be calculated.
+- `--model_recover_path`是fine-tuned模型的路径
+- `--beam_size`是beam search中beam的大小
+- `--output_candidates`指定输出多少个beam search的候选结果，必须大于0小于`beam_size`
+- `--do_decode`: 是否进行解码
+- `--compute_rouge`: 解码后是否计算ROUGE分数。如果`output_candidates > 1`，计算的是所有候选结果ROUGE的平均值。
 
-P.S. If the `model_recover_path` is `./output_dir/checkpoint-xxx/pytorch_model.bin`, the decoding output file will be `./output_dir/checkpoint-xxx/pytorch_model.bin.decode.txt`
+P.S. 如果`model_recover_path`是`./output_dir/checkpoint-xxx/pytorch_model.bin`，解码结果会输出到`./output_dir/checkpoint-xxx/pytorch_model.bin.decode.txt`
 
-Using Python
+代码解码
 
 ```python
 from unilm import UniLMTokenizer, UniLMForConditionalGeneration
@@ -208,23 +213,23 @@ summary = output_text.split("[SEP]")[1].strip()
 print(summary)
 ```
 
-## Inference Performance
+## 推理性能
 
-Inference speeds up compared to official implementaion, but GPU usage also increases.
+相比官方实现，推理速度有提升，但显存开销也有增加。
 
-- Settings
+- 场景
 
     |||
     |:--|--:|
     |GPU|1 x RTX 3060 6GB|
-    |Dataset|first 1k of CNN/DailyMail testset|
+    |Dataset|CNN/DailyMail测试集前1k条|
     |Max Source Length|448|
-    |Max Target Length|64|
+    |Max Target Lenngth|64|
     |Beam Size|3|
 
-- Inference Time
+- 推理时间
 
-    |Batch Size|[microsoft/unilm](https://github.com/microsoft/unilm/tree/master/unilm-v1)|Liadrinz/transformers-unilm|speed-up ratio|
+    |Batch Size|[microsoft/unilm](https://github.com/microsoft/unilm/tree/master/unilm-v1)|Liadrinz/transformers-unilm|加速比|
     |--:|--:|--:|--:|
     |1|1070s|1020s|1.05|
     |2|713s|595s|1.20|
