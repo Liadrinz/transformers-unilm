@@ -7,7 +7,7 @@ from transformers.training_args import TrainingArguments
 
 
 tokenizer = UniLMTokenizerXLMRoberta.from_pretrained("xlm-roberta-base")
-dataset = Seq2SeqDataset(tokenizer, "train.src", "train.tgt", max_src_len=32, max_tgt_len=3162)
+dataset = Seq2SeqDataset(tokenizer, "train.src", "train.tgt", max_src_len=192, max_tgt_len=64)
 collator = DataCollatorForUniLMSeq2Seq(tokenizer, mlm=True, mlm_probability=0.7)
 model = UniLMForConditionalGenerationXLMRoberta.from_pretrained("xlm-roberta-base")
 training_args = TrainingArguments(
