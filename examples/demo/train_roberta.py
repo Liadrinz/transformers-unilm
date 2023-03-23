@@ -1,9 +1,3 @@
-import os
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
-
-from tqdm import tqdm
-
 from unilm import UniLMTokenizerRoberta, UniLMForConditionalGenerationRoberta
 from unilm.collator import DataCollatorForUniLMSeq2Seq
 from unilm.data_utils import Seq2SeqDataset
