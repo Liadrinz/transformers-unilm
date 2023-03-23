@@ -26,4 +26,4 @@ trainer = Seq2SeqTrainer(
     train_dataset=dataset,
     tokenizer=tokenizer,
 )
-trainer.train(resume_from_checkpoint=True)
+trainer.train()
