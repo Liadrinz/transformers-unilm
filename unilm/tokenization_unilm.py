@@ -1,7 +1,8 @@
 from transformers.tokenization_utils import PreTrainedTokenizer
 from transformers.models.bert.tokenization_bert import BertTokenizer
 from transformers.models.roberta.tokenization_roberta import RobertaTokenizer
-from typing import List, Optional
+from transformers.models.xlm_roberta.tokenization_xlm_roberta import XLMRobertaTokenizer
+from typing import List, Optional, Dict, Any
 
 
 class UniLMTokenizerBase(PreTrainedTokenizer):
@@ -82,5 +83,27 @@ class UniLMTokenizerRoberta(UniLMTokenizerBase, RobertaTokenizer):
         **kwargs
     ):
         super().__init__(vocab_file, merges_file, errors, bos_token, eos_token, sep_token, cls_token, unk_token, pad_token, mask_token, add_prefix_space, **kwargs)
+        self.src_type_id = src_type_id
+        self.tgt_type_id = tgt_type_id
+
+
+class UniLMTokenizerXLMRoberta(UniLMTokenizerBase, XLMRobertaTokenizer):
+    
+    def __init__(
+        self,
+        vocab_file,
+        bos_token="<s>",
+        eos_token="</s>",
+        sep_token="</s>",
+        cls_token="<s>",
+        unk_token="<unk>",
+        pad_token="<pad>",
+        mask_token="<mask>",
+        sp_model_kwargs: Optional[Dict[str, Any]] = None,
+        src_type_id=0,
+        tgt_type_id=1,
+        **kwargs
+    ) -> None:
+        super().__init__(vocab_file, bos_token, eos_token, sep_token, cls_token, unk_token, pad_token, mask_token, sp_model_kwargs, **kwargs)
         self.src_type_id = src_type_id
         self.tgt_type_id = tgt_type_id

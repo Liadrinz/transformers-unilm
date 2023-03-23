@@ -26,9 +26,17 @@ from transformers.models.roberta.modeling_roberta import (
     RobertaModel,
     RobertaForMaskedLM,
 )
+from transformers.models.xlm_roberta.modeling_xlm_roberta import (
+    XLMRobertaModel,
+    XLMRobertaForMaskedLM,
+)
 from transformers.modeling_outputs import MaskedLMOutput
 from transformers.utils import logging
-from .configuration_unilm import UniLMConfig, UniLMConfigRoberta
+from .configuration_unilm import (
+    UniLMConfig,
+    UniLMConfigRoberta,
+    UniLMConfigXLMRoberta,
+)
 
 
 logger = logging.get_logger(__name__)
@@ -306,9 +314,12 @@ class UniLMEmbeddingRoberta(RobertaEmbeddings):
         return embeddings
 
 
-class UniLMModelBase(PreTrainedModel):
+class UniLMEmbeddingXLMRoberta(UniLMEmbeddingRoberta):
     
-    config_class = UniLMConfig
+    pass
+
+
+class UniLMModelBase(PreTrainedModel):
     
     def get_extended_attention_mask(self, attention_mask: torch.Tensor, token_type_ids: torch.Tensor, input_shape: Tuple[int], past_length: int = 0, device = None, dtype: torch.float = None) -> torch.Tensor:
         if dtype is None:
@@ -431,6 +442,8 @@ class UniLMModelBase(PreTrainedModel):
 
 class UniLMModel(UniLMModelBase, BertModel):
     
+    config_class = UniLMConfig
+    
     def __init__(self, config: UniLMConfig):
         super().__init__(config)
         self.embeddings = UniLMEmbedding(config)
@@ -439,9 +452,21 @@ class UniLMModel(UniLMModelBase, BertModel):
 
 class UniLMModelRoberta(UniLMModelBase, RobertaModel):
     
-    def __init__(self, config: UniLMConfig):
+    config_class = UniLMConfigRoberta
+    
+    def __init__(self, config: UniLMConfigRoberta):
         super().__init__(config)
         self.embeddings = UniLMEmbeddingRoberta(config)
+        self.encoder = UniLMEncoder(config)
+
+
+class UniLMModelXLMRoberta(UniLMModelBase, XLMRobertaModel):
+    
+    config_class = UniLMConfigXLMRoberta
+    
+    def __init__(self, config: UniLMConfigXLMRoberta):
+        super().__init__(config)
+        self.embeddings = UniLMEmbeddingXLMRoberta(config)
         self.encoder = UniLMEncoder(config)
 
 
@@ -590,6 +615,26 @@ class UniLMForConditionalGenerationRoberta(UniLMForConditionalGenerationBase, Ro
     def __init__(self, config: UniLMConfig):
         super().__init__(config)
         self.roberta = UniLMModelRoberta(config)
+
+    @property
+    def base_model(self) -> nn.Module:
+        return self.roberta
+    
+    @property
+    def lm_head_module(self) -> nn.Module:
+        return self.lm_head
+
+
+class UniLMForConditionalGenerationXLMRoberta(UniLMForConditionalGenerationBase, XLMRobertaForMaskedLM):
+    
+    config_class = UniLMConfigXLMRoberta
+    
+    _keys_to_ignore_on_save = []
+    _keys_to_ignore_on_load_missing = [r"position_ids"]
+    
+    def __init__(self, config: UniLMConfig):
+        super().__init__(config)
+        self.roberta = UniLMModelXLMRoberta(config)
 
     @property
     def base_model(self) -> nn.Module:

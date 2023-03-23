@@ -7,6 +7,7 @@ setup(
     install_requires=[
         "transformers",
         "torch",
+        "sentencepiece",
     ],
     entry_points={
         "console_scripts": [
