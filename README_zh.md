@@ -2,6 +2,10 @@
 
 中文 | [English](README_en.md)
 
+## 更新
+
+- 2023/03/23: 支持使用RoBERTa预训练模型来初始化UniLM ([详情](#使用RoBERTa))
+
 ## 介绍
 
 UniLM是微软研究院于2019年提出的语言模型，利用了BERT模型架构和MLM任务，既能做NLU又能做NLG，并且在生成式摘要任务上取得了SOTA的效果。详见[论文](https://arxiv.org/abs/1905.03197)。
@@ -234,3 +238,25 @@ print(summary)
     |1|1070s|1020s|1.05|
     |2|713s|595s|1.20|
     |4|623s|388s|1.61|
+
+## 使用RoBERTa
+
+基于RoBERTa的UniLM组件:
+
+```py
+from unilm import UniLMConfigRoberta, UniLMTokenizerRoberta, UniLMModelRoberta, UniLMForConditionalGenerationRoberta
+
+config = UniLMConfigRoberta.from_pretrained("roberta-base")
+tokenizer = UniLMTokenizerRoberta.from_pretrained("roberta-base")
+
+base_model = UniLMModelRoberta.from_pretrained("roberta-base")
+
+s2s_model = UniLMForConditionalGenerationRoberta.from_pretrained("roberta-base")
+# 训练和解码和BERT版本一样
+s2s_model(...)  # 训练
+s2s_model.generate(...)  # 解码
+```
+
+详见`examples/demo/train_roberta.py`和`examples/demo/infer_seq2seq_roberta.py`
+
+⚠: RoBERTa中文预训练模型大多使用的是`BertTokenizer`和`BertForMaskedLM`, 所以直接使用BERT版本的UniLM即可。

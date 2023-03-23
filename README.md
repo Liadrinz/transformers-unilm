@@ -2,6 +2,10 @@
 
 [中文](README.md) | English
 
+## News
+
+- 2023/03/23: Support initializing UniLM with RoBERTa pre-trained models ([Learn More](#RoBERTa-Initialization))
+
 ## Introduction
 
 UniLM is proposed by MSR in 2019, which utilize the BERT model architecture and MLM task for both text NLU and NLG, and has achieved state-of-the-art performance on abstractive summarization task. See the [paper](https://arxiv.org/abs/1905.03197) for more details.
@@ -24,20 +28,20 @@ Installation
 pip install git+https://github.com/Liadrinz/transformers-unilm
 ```
 
-Doing Chinese news article summarization
+Doing news article summarization
 
 ```py
 from unilm import UniLMTokenizer, UniLMForConditionalGeneration
 
 
 news_article = (
-    "12月23日，河北石家庄。8岁哥哥轻车熟路哄睡弟弟，姿势标准动作熟练。"
-    "妈妈杨女士表示：哥哥很喜欢弟弟，因为心思比较细，自己平时带孩子的习惯他都会跟着学习，"
-    "哄睡孩子也都会争着来，技巧很娴熟，两人在一块很有爱，自己感到很幸福，平时帮了自己很大的忙，感恩有这么乖的宝宝。"
+    "The Leaning Tower of Pisa has straightened itself by 1.6 inches over the last two decades, "
+    "according to a recent study. Italy’s famous attraction is known for looking like it is about to fall over with its almost four-degree tilt. "
+    "But the slant has long worried engineers, and historians worked on stabilising the tower for 11 years. By the time the project ended in 2001, the Tuscan building had straightened by 15 inches."
 )
 
-tokenizer = UniLMTokenizer.from_pretrained("Yuang/unilm-base-chinese-news-sum")
-model = UniLMForConditionalGeneration.from_pretrained("Yuang/unilm-base-chinese-news-sum")  # fine-tuned on weibo news article summarization dataset
+tokenizer = UniLMTokenizer.from_pretrained("microsoft/unilm-base-cased")
+model = UniLMForConditionalGeneration.from_pretrained("microsoft/unilm-base-cased")  # fine-tuned on weibo news article summarization dataset
 
 inputs = tokenizer(news_article, return_tensors="pt")
 output_ids = model.generate(**inputs, max_new_tokens=16)
@@ -229,3 +233,25 @@ Inference speeds up compared to official implementaion, but GPU usage also incre
     |1|1070s|1020s|1.05|
     |2|713s|595s|1.20|
     |4|623s|388s|1.61|
+
+## RoBERTa Initialization
+
+RoBERTa-based UniLM components:
+
+```py
+from unilm import UniLMConfigRoberta, UniLMTokenizerRoberta, UniLMModelRoberta, UniLMForConditionalGenerationRoberta
+
+config = UniLMConfigRoberta.from_pretrained("roberta-base")
+tokenizer = UniLMTokenizerRoberta.from_pretrained("roberta-base")
+
+base_model = UniLMModelRoberta.from_pretrained("roberta-base")
+
+s2s_model = UniLMForConditionalGenerationRoberta.from_pretrained("roberta-base")
+# train and decode just like the BERT-based version
+s2s_model(...)  # train
+s2s_model.generate(...)  # decode
+```
+
+See also `examples/demo/train_roberta.py` and `examples/demo/infer_seq2seq_roberta.py`.
+
+⚠: Most Chinese RoBERTa pre-trained models use `BertTokenizer` and `BertForMaskedLM`, which means you can directly use the BERT-based version.
