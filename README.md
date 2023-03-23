@@ -254,4 +254,4 @@ s2s_model.generate(...)  # decode
 
 See also `examples/demo/train_roberta.py` and `examples/demo/infer_seq2seq_roberta.py`.
 
-⚠: Most Chinese RoBERTa pre-trained models use `BertTokenizer` and `BertForMaskedLM`, which means you can directly use the BERT-based version.
+⚠: Most Chinese RoBERTa pre-trained models use `BertTokenizer` and `BertForMaskedLM`, which means you can directly use the BERT-based version .
