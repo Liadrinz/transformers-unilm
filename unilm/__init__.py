@@ -1,3 +1,3 @@
-from .modeling_unilm import UniLMModel, UniLMForConditionalGeneration
-from .configuration_unilm import UniLMConfig
-from .tokenization_unilm import UniLMTokenizer
+from .modeling_unilm import *
+from .configuration_unilm import *
+from .tokenization_unilm import *

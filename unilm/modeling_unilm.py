@@ -5,8 +5,13 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 from typing import Optional, Union, Tuple, Callable, List, Dict, Any, OrderedDict
 from dataclasses import dataclass
+from transformers.modeling_utils import PreTrainedModel
+from transformers.pytorch_utils import apply_chunking_to_forward
+from transformers.modeling_outputs import (
+    BaseModelOutputWithPoolingAndCrossAttentions,
+    BaseModelOutputWithPastAndCrossAttentions,
+)
 from transformers.models.bert.modeling_bert import (
-    apply_chunking_to_forward,
     BertSelfAttention,
     BertAttention,
     BertLayer,
@@ -14,12 +19,16 @@ from transformers.models.bert.modeling_bert import (
     BertEncoder,
     BertModel,
     BertForMaskedLM,
-    BaseModelOutputWithPoolingAndCrossAttentions,
-    BaseModelOutputWithPastAndCrossAttentions,
+)
+from transformers.models.roberta.modeling_roberta import (
+    create_position_ids_from_input_ids,
+    RobertaEmbeddings,
+    RobertaModel,
+    RobertaForMaskedLM,
 )
 from transformers.modeling_outputs import MaskedLMOutput
 from transformers.utils import logging
-from .configuration_unilm import UniLMConfig
+from .configuration_unilm import UniLMConfig, UniLMConfigRoberta
 
 
 logger = logging.get_logger(__name__)
@@ -256,15 +265,51 @@ class UniLMEmbedding(BertEmbeddings):
         )
 
 
-class UniLMModel(BertModel):
+class UniLMEmbeddingRoberta(RobertaEmbeddings):
+    
+    def forward(
+        self, input_ids=None, token_type_ids=None, position_ids=None, inputs_embeds=None, past_key_values_length=0
+    ):
+        if position_ids is None:
+            if input_ids is not None:
+                # Create the position ids from the input token ids. Any padded tokens remain padded.
+                position_ids = create_position_ids_from_input_ids(input_ids, self.padding_idx, past_key_values_length)
+            else:
+                position_ids = self.create_position_ids_from_inputs_embeds(inputs_embeds)
+
+        if input_ids is not None:
+            input_shape = input_ids.size()
+        else:
+            input_shape = inputs_embeds.size()[:-1]
+
+        seq_length = input_shape[1]
+
+        if hasattr(self, "token_type_ids"):
+            buffered_token_type_ids = self.token_type_ids[:, :seq_length]
+            buffered_token_type_ids_expanded = buffered_token_type_ids.expand(input_shape[0], seq_length)
+            token_type_ids_for_embed = buffered_token_type_ids_expanded
+        else:
+            token_type_ids_for_embed = torch.zeros(input_shape, dtype=torch.long, device=self.position_ids.device)
+
+        if inputs_embeds is None:
+            inputs_embeds = self.word_embeddings(input_ids)
+        
+        # the input `token_type_ids` is only used to tell the source and the target sequences
+        token_type_embeddings = self.token_type_embeddings(token_type_ids_for_embed)
+
+        embeddings = inputs_embeds + token_type_embeddings
+        if self.position_embedding_type == "absolute":
+            position_embeddings = self.position_embeddings(position_ids)
+            embeddings += position_embeddings
+        embeddings = self.LayerNorm(embeddings)
+        embeddings = self.dropout(embeddings)
+        return embeddings
+
+
+class UniLMModelBase(PreTrainedModel):
     
     config_class = UniLMConfig
     
-    def __init__(self, config: UniLMConfig):
-        super().__init__(config)
-        self.embeddings = UniLMEmbedding(config)
-        self.encoder = UniLMEncoder(config)
-
     def get_extended_attention_mask(self, attention_mask: torch.Tensor, token_type_ids: torch.Tensor, input_shape: Tuple[int], past_length: int = 0, device = None, dtype: torch.float = None) -> torch.Tensor:
         if dtype is None:
             dtype = self.dtype
@@ -384,16 +429,27 @@ class UniLMModel(BertModel):
         )
 
 
-class UniLMForConditionalGeneration(BertForMaskedLM):
-    
-    _allowed_missing_keys = ["bert.embeddings.position_ids", "cls.predictions.decoder.bias"]
-    _allowed_unexpected_keys = ["cls.seq_relationship.weight", "cls.seq_relationship.bias"]
-    
-    config_class = UniLMConfig
+class UniLMModel(UniLMModelBase, BertModel):
     
     def __init__(self, config: UniLMConfig):
         super().__init__(config)
-        self.bert = UniLMModel(config)
+        self.embeddings = UniLMEmbedding(config)
+        self.encoder = UniLMEncoder(config)
+
+
+class UniLMModelRoberta(UniLMModelBase, RobertaModel):
+    
+    def __init__(self, config: UniLMConfig):
+        super().__init__(config)
+        self.embeddings = UniLMEmbeddingRoberta(config)
+        self.encoder = UniLMEncoder(config)
+
+
+class UniLMForConditionalGenerationBase(PreTrainedModel):
+    
+    @property
+    def lm_head_module(self) -> nn.Module:
+        return None
     
     def _update_model_kwargs_for_generation(
         self, outputs: UniLMSeq2SeqOutput, model_kwargs: Dict[str, Any], is_encoder_decoder: bool = False
@@ -419,7 +475,7 @@ class UniLMForConditionalGeneration(BertForMaskedLM):
             if token_type_ids is None:
                 token_type_ids = input_ids.new_empty(batch_size, seq_length).fill_(self.config.src_type_id)
             if position_ids is None:
-                position_ids = self.bert.embeddings.position_ids.repeat(batch_size, 1)[:, :seq_length]
+                position_ids = self.base_model.embeddings.position_ids.repeat(batch_size, 1)[:, :seq_length]
                 position_ids[attention_mask == 0] = 0
             next_position_ids = attention_mask.sum(dim=-1, keepdims=True)
             input_ids = torch.cat((input_ids, next_input_ids), dim=-1)
@@ -466,8 +522,8 @@ class UniLMForConditionalGeneration(BertForMaskedLM):
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
-
-        outputs = self.bert(
+        
+        outputs = self.base_model(
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
@@ -482,7 +538,7 @@ class UniLMForConditionalGeneration(BertForMaskedLM):
         )
 
         sequence_output = outputs[0]
-        prediction_scores = self.cls(sequence_output)
+        prediction_scores = self.lm_head_module(sequence_output)
 
         masked_lm_loss = None
         if labels is not None:
@@ -503,23 +559,42 @@ class UniLMForConditionalGeneration(BertForMaskedLM):
             past_key_values=past_key_values,
         )
 
-    def load_state_dict(self, state_dict: OrderedDict[str, torch.Tensor], strict: bool = True, compat: bool = True):
-        if not strict or not compat:
-            return super().load_state_dict(state_dict, strict)
-        error_msgs: List[str] = []
-        load_return = super().load_state_dict(state_dict, strict=False)
-        missing_keys, unexpected_keys = load_return
-        missing_keys = list(set(missing_keys).difference(self._allowed_missing_keys))
-        unexpected_keys = list(set(unexpected_keys).difference(self._allowed_unexpected_keys))
-        if len(unexpected_keys) > 0:
-            error_msgs.insert(
-                0, 'Unexpected key(s) in state_dict: {}. '.format(
-                    ', '.join('"{}"'.format(k) for k in unexpected_keys)))
-        if len(missing_keys) > 0:
-            error_msgs.insert(
-                0, 'Missing key(s) in state_dict: {}. '.format(
-                    ', '.join('"{}"'.format(k) for k in missing_keys)))
-        if len(error_msgs) > 0:
-            raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(
-                               self.__class__.__name__, "\n\t".join(error_msgs)))
-        return load_return
+
+class UniLMForConditionalGeneration(UniLMForConditionalGenerationBase, BertForMaskedLM):
+    
+    config_class = UniLMConfig
+    
+    _keys_to_ignore_on_load_missing = [r"pooler", r"bert.embeddings.position_ids", r"cls.predictions.decoder.bias"]
+    _keys_to_ignore_on_load_unexpected = [r"position_ids", r"predictions.decoder.bias", r"cls.seq_relationship.weight", r"cls.seq_relationship.bias"]
+    
+    def __init__(self, config: UniLMConfig):
+        super().__init__(config)
+        self.bert = UniLMModel(config)
+
+    @property
+    def base_model(self) -> nn.Module:
+        return self.bert
+    
+    @property
+    def lm_head_module(self) -> nn.Module:
+        return self.cls
+
+
+class UniLMForConditionalGenerationRoberta(UniLMForConditionalGenerationBase, RobertaForMaskedLM):
+    
+    config_class = UniLMConfigRoberta
+    
+    _keys_to_ignore_on_save = []
+    _keys_to_ignore_on_load_missing = [r"position_ids"]
+    
+    def __init__(self, config: UniLMConfig):
+        super().__init__(config)
+        self.roberta = UniLMModelRoberta(config)
+
+    @property
+    def base_model(self) -> nn.Module:
+        return self.roberta
+    
+    @property
+    def lm_head_module(self) -> nn.Module:
+        return self.lm_head

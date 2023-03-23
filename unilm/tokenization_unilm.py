@@ -1,29 +1,10 @@
+from transformers.tokenization_utils import PreTrainedTokenizer
 from transformers.models.bert.tokenization_bert import BertTokenizer
+from transformers.models.roberta.tokenization_roberta import RobertaTokenizer
 from typing import List, Optional
 
 
-class UniLMTokenizer(BertTokenizer):
-    
-    def __init__(
-        self,
-        vocab_file,
-        do_lower_case=True,
-        do_basic_tokenize=True,
-        never_split=None,
-        unk_token="[UNK]",
-        sep_token="[SEP]",
-        pad_token="[PAD]",
-        cls_token="[CLS]",
-        mask_token="[MASK]",
-        tokenize_chinese_chars=True,
-        strip_accents=None,
-        src_type_id=4,
-        tgt_type_id=5,
-        **kwargs
-    ):
-        super().__init__(vocab_file, do_lower_case, do_basic_tokenize, never_split, unk_token, sep_token, pad_token, cls_token, mask_token, tokenize_chinese_chars, strip_accents, **kwargs)
-        self.src_type_id = src_type_id
-        self.tgt_type_id = tgt_type_id
+class UniLMTokenizerBase(PreTrainedTokenizer):
     
     def create_token_type_ids_from_sequences(
         self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None
@@ -53,3 +34,53 @@ class UniLMTokenizer(BertTokenizer):
         if token_ids_1 is not None:
             return [1] + ([0] * len(token_ids_0)) + [1] + ([0] * len(token_ids_1)) + [0]
         return [1] + ([0] * len(token_ids_0)) + [0]
+
+
+class UniLMTokenizer(UniLMTokenizerBase, BertTokenizer):
+    
+    def __init__(
+        self,
+        vocab_file,
+        do_lower_case=True,
+        do_basic_tokenize=True,
+        never_split=None,
+        unk_token="[UNK]",
+        sep_token="[SEP]",
+        pad_token="[PAD]",
+        cls_token="[CLS]",
+        mask_token="[MASK]",
+        tokenize_chinese_chars=True,
+        strip_accents=None,
+        src_type_id=4,
+        tgt_type_id=5,
+        **kwargs
+    ):
+        super().__init__(vocab_file, do_lower_case, do_basic_tokenize, never_split, unk_token, sep_token, pad_token, cls_token, mask_token, tokenize_chinese_chars, strip_accents, **kwargs)
+        self.bos_token = cls_token
+        self.eos_token = sep_token
+        self.src_type_id = src_type_id
+        self.tgt_type_id = tgt_type_id
+
+
+class UniLMTokenizerRoberta(UniLMTokenizerBase, RobertaTokenizer):
+    
+    def __init__(
+        self,
+        vocab_file,
+        merges_file,
+        errors="replace",
+        bos_token="<s>",
+        eos_token="</s>",
+        sep_token="</s>",
+        cls_token="<s>",
+        unk_token="<unk>",
+        pad_token="<pad>",
+        mask_token="<mask>",
+        add_prefix_space=False,
+        src_type_id=0,
+        tgt_type_id=1,
+        **kwargs
+    ):
+        super().__init__(vocab_file, merges_file, errors, bos_token, eos_token, sep_token, cls_token, unk_token, pad_token, mask_token, add_prefix_space, **kwargs)
+        self.src_type_id = src_type_id
+        self.tgt_type_id = tgt_type_id
