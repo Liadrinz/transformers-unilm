@@ -236,7 +236,9 @@ Inference speeds up compared to official implementaion, but GPU usage also incre
 
 ## RoBERTa Initialization
 
-RoBERTa-based UniLM components:
+⚠: Most Chinese RoBERTa pre-trained models use `BertTokenizer` and `BertForMaskedLM`, which means you can directly use the BERT-based version of UniLM.
+
+### RoBERTa-based UniLM components
 
 ```py
 from unilm import UniLMConfigRoberta, UniLMTokenizerRoberta, UniLMModelRoberta, UniLMForConditionalGenerationRoberta
@@ -254,4 +256,43 @@ s2s_model.generate(...)  # decode
 
 See also `examples/demo/train_roberta.py` and `examples/demo/infer_seq2seq_roberta.py`.
 
-⚠: Most Chinese RoBERTa pre-trained models use `BertTokenizer` and `BertForMaskedLM`, which means you can directly use the BERT-based version of UniLM.
+### Train and Decode Commands
+
+Just specify the `--base_model` option with `roberta` to train and decode with the installed `unilm_train` and `unilm_decode` commands.
+
+```sh
+unilm_train \
+    --base_model roberta \
+    --model_name_or_path microsoft/unilm-base-cased \
+    --batch_size 16 \
+    --src_file train.src \
+    --tgt_file train.tgt \
+    --max_src_len 448 \
+    --max_tgt_len 64 \
+    --mask_prob 0.7 \
+    --seed 42\
+    --fp16 \
+    --output_dir /path/to/checkpoints/ \
+    --gradient_accumulation_steps 2 \
+    --lr 1e-4 \
+    --num_train_epochs 3
+```
+
+```sh
+unilm_decode \
+    --base_model roberta \
+    --model_name_or_path microsoft/unilm-base-cased \
+    --model_recover_path /path/to/checkpoints/checkpoint-xxx/pytorch.model.bin \
+    --batch_size 64 \
+    --src_file test.src \
+    --max_src_len 448 \
+    --max_tgt_len 64 \
+    --seed 42 \
+    --fp16 \
+    --beam_size 3 \
+    --length_penalty 0.0 \
+    --diversity_penalty 0.0 \
+    --num_beam_groups 1 \
+    --output_candidates 1 \
+    --no_repeat_ngram_size 3
+```

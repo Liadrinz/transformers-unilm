@@ -3,20 +3,35 @@ import re
 import os
 import json
 
+from typing import Tuple, Type, Dict
 from tqdm import tqdm
 from pathlib import Path
 from argparse import ArgumentParser
 from torch.utils.data.dataloader import DataLoader
+from transformers.tokenization_utils import PreTrainedTokenizer
 from transformers.trainer_seq2seq import Seq2SeqTrainer
 from transformers.trainer_utils import IntervalStrategy
 from transformers.training_args import TrainingArguments
-from . import UniLMTokenizer, UniLMForConditionalGeneration
+from . import (
+    UniLMForConditionalGenerationBase,
+    UniLMTokenizer,
+    UniLMForConditionalGeneration,
+    UniLMTokenizerRoberta,
+    UniLMForConditionalGenerationRoberta,
+)
 from .collator import DataCollatorForUniLMSeq2Seq
 from .data_utils import Seq2SeqDataset
 
 
+BASE_MODELS: Dict[str, Tuple[Type[PreTrainedTokenizer], Type[UniLMForConditionalGenerationBase]]] = {
+    "bert": (UniLMTokenizer, UniLMForConditionalGeneration),
+    "roberta": (UniLMTokenizerRoberta, UniLMForConditionalGenerationRoberta),
+}
+
+
 def get_train_args():
     parser = ArgumentParser()
+    parser.add_argument("--base_model", type=str, default="bert")
     parser.add_argument("--model_name_or_path", type=str, default="microsoft/unilm-base-cased")
     parser.add_argument("--model_recover_path", type=str, default=None)
     parser.add_argument("--no_cuda", action="store_true")
@@ -39,6 +54,7 @@ def get_train_args():
 
 def get_decode_args():
     parser = ArgumentParser()
+    parser.add_argument("--base_model", type=str, default="bert")
     parser.add_argument("--model_name_or_path", type=str, default="microsoft/unilm-base-cased")
     parser.add_argument("--model_recover_path", type=str, default=None)
     parser.add_argument("--no_cuda", action="store_true")
@@ -62,10 +78,11 @@ def get_decode_args():
 
 
 def train(args):
-    tokenizer = UniLMTokenizer.from_pretrained(args.model_name_or_path)
+    tokenizer_cls, model_cls = BASE_MODELS[args.base_model]
+    tokenizer = tokenizer_cls.from_pretrained(args.model_name_or_path)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    model = UniLMForConditionalGeneration.from_pretrained(args.model_name_or_path)
+    model = model_cls.from_pretrained(args.model_name_or_path)
     collator = DataCollatorForUniLMSeq2Seq(tokenizer, mlm=True, mlm_probability=args.mask_prob)
     if args.model_recover_path:
         state_dict = torch.load(args.model_recover_path)
@@ -105,12 +122,13 @@ def train(args):
 
 
 def decode(args):
+    tokenizer_cls, model_cls = BASE_MODELS[args.base_model]
     decode_out_file = args.decode_out_file
     if decode_out_file is None:
         decode_out_file = f"{args.model_recover_path}.decode.txt" if args.model_recover_path else "decode.txt"
     device = "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
-    tokenizer = UniLMTokenizer.from_pretrained(args.model_name_or_path)
-    model = UniLMForConditionalGeneration.from_pretrained(args.model_name_or_path)
+    tokenizer = tokenizer_cls.from_pretrained(args.model_name_or_path)
+    model = model_cls.from_pretrained(args.model_name_or_path)
     if args.fp16:
         model.half()
     model.to(device)

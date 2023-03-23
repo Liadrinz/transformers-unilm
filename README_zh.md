@@ -241,7 +241,9 @@ print(summary)
 
 ## 使用RoBERTa
 
-基于RoBERTa的UniLM组件:
+⚠: RoBERTa中文预训练模型大多使用的是`BertTokenizer`和`BertForMaskedLM`, 所以直接使用BERT版本的UniLM即可。
+
+### 基于RoBERTa的UniLM组件
 
 ```py
 from unilm import UniLMConfigRoberta, UniLMTokenizerRoberta, UniLMModelRoberta, UniLMForConditionalGenerationRoberta
@@ -259,4 +261,43 @@ s2s_model.generate(...)  # 解码
 
 详见`examples/demo/train_roberta.py`和`examples/demo/infer_seq2seq_roberta.py`
 
-⚠: RoBERTa中文预训练模型大多使用的是`BertTokenizer`和`BertForMaskedLM`, 所以直接使用BERT版本的UniLM即可。
+### 训练和解码命令
+
+将`--base_model`选项设为`roberta`即可使用`unilm_train`和`unilm_decode`命令来训练和解码。
+
+```sh
+unilm_train \
+    --base_model roberta \
+    --model_name_or_path microsoft/unilm-base-cased \
+    --batch_size 16 \
+    --src_file train.src \
+    --tgt_file train.tgt \
+    --max_src_len 448 \
+    --max_tgt_len 64 \
+    --mask_prob 0.7 \
+    --seed 42\
+    --fp16 \
+    --output_dir /path/to/checkpoints/ \
+    --gradient_accumulation_steps 2 \
+    --lr 1e-4 \
+    --num_train_epochs 3
+```
+
+```sh
+unilm_decode \
+    --base_model roberta \
+    --model_name_or_path microsoft/unilm-base-cased \
+    --model_recover_path /path/to/checkpoints/checkpoint-xxx/pytorch.model.bin \
+    --batch_size 64 \
+    --src_file test.src \
+    --max_src_len 448 \
+    --max_tgt_len 64 \
+    --seed 42 \
+    --fp16 \
+    --beam_size 3 \
+    --length_penalty 0.0 \
+    --diversity_penalty 0.0 \
+    --num_beam_groups 1 \
+    --output_candidates 1 \
+    --no_repeat_ngram_size 3
+```
