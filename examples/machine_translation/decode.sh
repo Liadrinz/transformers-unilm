@@ -1,0 +1,16 @@
+unilm_decode \
+    --base_model roberta \
+    --model_name_or_path xlm-roberta-large \
+    --model_recover_path /output_dir/en-de/checkpoint-xxx/pytorch_model.bin \
+    --batch_size 64 \
+    --src_file test.src \
+    --max_src_len 64 \
+    --max_tgt_len 64 \
+    --seed 42 \
+    --fp16 \
+    --beam_size 3 \
+    --length_penalty 0.0 \
+    --diversity_penalty 0.0 \
+    --num_beam_groups 1 \
+    --output_candidates 1 \
+    --no_repeat_ngram_size 3
