@@ -1,9 +1,10 @@
 unilm_decode \
     --base_model xlm-roberta \
     --model_name_or_path xlm-roberta-large \
-    --model_recover_path /output_dir/en-de/checkpoint-xxx/pytorch_model.bin \
-    --batch_size 64 \
-    --src_file data/wmt14-de-en/test.en \
+    --model_recover_path output_dir/pytorch_model.bin \
+    --batch_size 4 \
+    --src_file newstest2013/newstest2013.en \
+    --tgt_file newstest2013/newstest2013.de \
     --max_src_len 64 \
     --max_tgt_len 64 \
     --seed 42 \

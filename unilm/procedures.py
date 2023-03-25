@@ -63,6 +63,7 @@ def get_decode_args():
     parser.add_argument("--no_cuda", action="store_true")
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--src_file", type=str, default="test.src")
+    parser.add_argument("--tgt_file", type=str, default="test.tgt")
     parser.add_argument("--max_src_len", type=int, default=448)
     parser.add_argument("--max_tgt_len", type=int, default=64)
     parser.add_argument("--seed", type=int, default=42)
@@ -145,6 +146,7 @@ def decode(args):
     output_texts = []
     for batch in tqdm(dataloader):
         batch = { k: v.to(device) for k, v in batch.items() }
+        del batch["labels"]
         output = model.generate(
             **batch,
             max_new_tokens=args.max_tgt_len,
