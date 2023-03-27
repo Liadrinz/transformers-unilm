@@ -167,7 +167,7 @@ def decode(args):
             for output_ids in output[i:i+args.output_candidates]:
                 output_text = tokenizer.decode(output_ids).strip()
                 output_text = output_text.split(tokenizer.sep_token)[1].strip()
-                output_text = output_text.replace("[PAD]", "").strip()
+                output_text = output_text.replace(tokenizer.pad_token, "").strip()
                 output_text = re.sub(r"\s+", " ", output_text)
                 output_buffer.append(output_text)
             output_texts.append("\t".join(output_buffer))
