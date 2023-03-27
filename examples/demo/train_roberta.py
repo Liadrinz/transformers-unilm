@@ -10,6 +10,7 @@ tokenizer = UniLMTokenizerRoberta.from_pretrained("roberta-base")
 dataset = Seq2SeqDataset(tokenizer, "train.src", "train.tgt", max_src_len=192, max_tgt_len=64)
 collator = DataCollatorForUniLMSeq2Seq(tokenizer, mlm=True, mlm_probability=0.7)
 model = UniLMForConditionalGenerationRoberta.from_pretrained("roberta-base")
+model.resize_type_embeddings(2)
 training_args = TrainingArguments(
     output_dir="output_dir",
     do_train=True,

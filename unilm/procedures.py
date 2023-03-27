@@ -87,6 +87,8 @@ def train(args):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     model = model_cls.from_pretrained(args.model_name_or_path)
+    if model.config.type_vocab_size < 2:
+        model.resize_type_embeddings(2)
     collator = DataCollatorForUniLMSeq2Seq(tokenizer, mlm=True, mlm_probability=args.mask_prob)
     if args.model_recover_path:
         state_dict = torch.load(args.model_recover_path)
@@ -134,6 +136,8 @@ def decode(args):
     device = "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
     tokenizer = tokenizer_cls.from_pretrained(args.model_name_or_path)
     model = model_cls.from_pretrained(args.model_name_or_path)
+    if model.config.type_vocab_size < 2:
+        model.resize_type_embeddings(2)
     if args.fp16:
         model.half()
     model.to(device)
