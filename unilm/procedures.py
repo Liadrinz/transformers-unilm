@@ -63,6 +63,7 @@ def get_decode_args():
     parser.add_argument("--no_cuda", action="store_true")
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--src_file", type=str, default="test.src")
+    parser.add_argument("--tgt_file", type=str, default="test.tgt")
     parser.add_argument("--max_src_len", type=int, default=448)
     parser.add_argument("--max_tgt_len", type=int, default=64)
     parser.add_argument("--seed", type=int, default=42)
@@ -145,6 +146,7 @@ def decode(args):
     output_texts = []
     for batch in tqdm(dataloader):
         batch = { k: v.to(device) for k, v in batch.items() }
+        del batch["labels"]
         output = model.generate(
             **batch,
             max_new_tokens=args.max_tgt_len,
@@ -165,7 +167,7 @@ def decode(args):
             for output_ids in output[i:i+args.output_candidates]:
                 output_text = tokenizer.decode(output_ids).strip()
                 output_text = output_text.split(tokenizer.sep_token)[1].strip()
-                output_text = output_text.replace("[PAD]", "").strip()
+                output_text = output_text.replace(tokenizer.pad_token, "").strip()
                 output_text = re.sub(r"\s+", " ", output_text)
                 output_buffer.append(output_text)
             output_texts.append("\t".join(output_buffer))
