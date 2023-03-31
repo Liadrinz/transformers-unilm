@@ -46,7 +46,6 @@ def get_train_args():
     parser.add_argument("--mask_prob", type=float, default=0.7)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--fp16", action="store_true")
-    parser.add_argument("--local_rank", type=int, default=-1)
     parser.add_argument("--output_dir", type=str, default="output_dir")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--lr", type=float, default=3e-5)
@@ -111,7 +110,7 @@ def train(args):
         save_total_limit=1,
         logging_strategy=IntervalStrategy.STEPS,
         logging_steps=1,
-        local_rank=args.local_rank,
+        local_rank=os.environ["LOCAL_RANK"],
         remove_unused_columns=False,
         seed=args.seed,
     )
