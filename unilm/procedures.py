@@ -110,7 +110,7 @@ def train(args):
         save_total_limit=1,
         logging_strategy=IntervalStrategy.STEPS,
         logging_steps=1,
-        local_rank=os.environ["LOCAL_RANK"],
+        local_rank=os.environ.get("LOCAL_RANK", -1),
         remove_unused_columns=False,
         seed=args.seed,
     )
