@@ -1,16 +1,17 @@
 unilm_decode \
-    --base_model roberta \
+    --base_model xlm-roberta \
     --model_name_or_path xlm-roberta-large \
-    --model_recover_path /output_dir/en-de/checkpoint-xxx/pytorch_model.bin \
-    --batch_size 64 \
-    --src_file test.src \
+    --model_recover_path output_dir/news-commentary-v9.de-en/checkpoint-10000/pytorch_model.bin \
+    --batch_size 128 \
+    --src_file dev/newstest2013.en \
+    --tgt_file dev/newstest2013.de \
     --max_src_len 64 \
     --max_tgt_len 64 \
     --seed 42 \
     --fp16 \
-    --beam_size 3 \
+    --beam_size 4 \
     --length_penalty 0.0 \
-    --diversity_penalty 0.0 \
-    --num_beam_groups 1 \
+    --diversity_penalty 0.2 \
+    --num_beam_groups 2 \
     --output_candidates 1 \
     --no_repeat_ngram_size 3

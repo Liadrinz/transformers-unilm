@@ -21,12 +21,12 @@ from transformers.models.bert.modeling_bert import (
     BertForMaskedLM,
 )
 from transformers.models.roberta.modeling_roberta import (
-    create_position_ids_from_input_ids,
     RobertaEmbeddings,
     RobertaModel,
     RobertaForMaskedLM,
 )
 from transformers.models.xlm_roberta.modeling_xlm_roberta import (
+    XLMRobertaEmbeddings,
     XLMRobertaModel,
     XLMRobertaForMaskedLM,
 )
@@ -275,48 +275,20 @@ class UniLMEmbedding(BertEmbeddings):
 
 class UniLMEmbeddingRoberta(RobertaEmbeddings):
     
-    def forward(
-        self, input_ids=None, token_type_ids=None, position_ids=None, inputs_embeds=None, past_key_values_length=0
-    ):
-        if position_ids is None:
-            if input_ids is not None:
-                # Create the position ids from the input token ids. Any padded tokens remain padded.
-                position_ids = create_position_ids_from_input_ids(input_ids, self.padding_idx, past_key_values_length)
-            else:
-                position_ids = self.create_position_ids_from_inputs_embeds(inputs_embeds)
-
-        if input_ids is not None:
-            input_shape = input_ids.size()
-        else:
-            input_shape = inputs_embeds.size()[:-1]
-
-        seq_length = input_shape[1]
-
-        if hasattr(self, "token_type_ids"):
-            buffered_token_type_ids = self.token_type_ids[:, :seq_length]
-            buffered_token_type_ids_expanded = buffered_token_type_ids.expand(input_shape[0], seq_length)
-            token_type_ids_for_embed = buffered_token_type_ids_expanded
-        else:
-            token_type_ids_for_embed = torch.zeros(input_shape, dtype=torch.long, device=self.position_ids.device)
-
-        if inputs_embeds is None:
-            inputs_embeds = self.word_embeddings(input_ids)
-        
-        # the input `token_type_ids` is only used to tell the source and the target sequences
-        token_type_embeddings = self.token_type_embeddings(token_type_ids_for_embed)
-
-        embeddings = inputs_embeds + token_type_embeddings
-        if self.position_embedding_type == "absolute":
-            position_embeddings = self.position_embeddings(position_ids)
-            embeddings += position_embeddings
-        embeddings = self.LayerNorm(embeddings)
-        embeddings = self.dropout(embeddings)
-        return embeddings
+    def __init__(self, config):
+        super().__init__(config)
+        self.register_buffer(
+            "token_type_ids", torch.zeros(self.position_ids.size(), dtype=torch.long).fill_(config.src_type_id), persistent=False
+        )
 
 
-class UniLMEmbeddingXLMRoberta(UniLMEmbeddingRoberta):
+class UniLMEmbeddingXLMRoberta(XLMRobertaEmbeddings):
     
-    pass
+    def __init__(self, config):
+        super().__init__(config)
+        self.register_buffer(
+            "token_type_ids", torch.zeros(self.position_ids.size(), dtype=torch.long).fill_(config.src_type_id), persistent=False
+        )
 
 
 class UniLMModelBase(PreTrainedModel):
@@ -475,6 +447,12 @@ class UniLMForConditionalGenerationBase(PreTrainedModel):
     @property
     def lm_head_module(self) -> nn.Module:
         return None
+    
+    def resize_type_embeddings(self, new_type_vocab_size: Optional[int] = None) -> nn.Embedding:
+        old_embeddings = self.base_model.embeddings.token_type_embeddings
+        new_embeddings = self._get_resized_embeddings(old_embeddings, new_type_vocab_size)
+        self.base_model.embeddings.token_type_embeddings = new_embeddings
+        return self.base_model.embeddings.token_type_embeddings
     
     def _update_model_kwargs_for_generation(
         self, outputs: UniLMSeq2SeqOutput, model_kwargs: Dict[str, Any], is_encoder_decoder: bool = False

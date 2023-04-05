@@ -7,9 +7,9 @@ class Seq2SeqDataset(Dataset):
     def __init__(self, tokenizer: PreTrainedTokenizer, src_file, tgt_file, max_src_len=448, max_tgt_len=64, inference=False) -> None:
         super().__init__()
         self.tokenizer = tokenizer
-        with open(src_file) as fsrc, open(tgt_file) as ftgt:
-            self.srcs = [line.strip() for line in fsrc]
-            self.tgts = [line.strip() for line in ftgt]
+        with open(src_file, "rb") as fsrc, open(tgt_file, "rb") as ftgt:
+            self.srcs = [line.decode("utf-8").strip() for line in fsrc]
+            self.tgts = [line.decode("utf-8").strip() for line in ftgt]
         assert len(self.srcs) == len(self.tgts)
         self.max_src_len = max_src_len
         self.max_tgt_len = max_tgt_len
@@ -45,8 +45,8 @@ class CorpusDataset(Dataset):
     def __init__(self, tokenizer: PreTrainedTokenizer, corpus_file, max_seq_len=512) -> None:
         super().__init__()
         self.tokenizer = tokenizer
-        with open(corpus_file) as fin:
-            self.corpus = [line.strip() for line in fin]
+        with open(corpus_file, "rb") as fin:
+            self.corpus = [line.decode("utf-8").strip() for line in fin]
         self.max_seq_len = max_seq_len
     
     def __getitem__(self, idx):
