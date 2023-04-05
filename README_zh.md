@@ -4,7 +4,10 @@
 
 ## 更新
 
-- 2023/03/23: 支持使用RoBERTa预训练模型来初始化UniLM ([详情](#使用RoBERTa))
+- 2023/04/05
+    - 支持使用XLMRoBERTa预训练模型来初始化UniLM ([详情](#使用(XLM)RoBERTa))
+    - 使用基于XLMRoBERTa的UniLM进行机器翻译任务 ([详情](#机器翻译))
+- 2023/03/23: 支持使用RoBERTa预训练模型来初始化UniLM ([详情](#使用(XLM)RoBERTa))
 
 ## 介绍
 
@@ -239,7 +242,7 @@ print(summary)
     |2|713s|595s|1.20|
     |4|623s|388s|1.61|
 
-## 使用RoBERTa
+## 使用(XLM)RoBERTa
 
 ⚠: RoBERTa中文预训练模型大多使用的是`BertTokenizer`和`BertForMaskedLM`, 所以直接使用BERT版本的UniLM即可。
 
@@ -261,14 +264,32 @@ s2s_model.generate(...)  # 解码
 
 详见`examples/demo/train_roberta.py`和`examples/demo/infer_seq2seq_roberta.py`
 
+### 基于XLMRoBERTa的UniLM组件
+
+```py
+from unilm import UniLMConfigXLMRoberta, UniLMTokenizerXLMRoberta, UniLMModelXLMRoberta, UniLMForConditionalGenerationXLMRoberta
+
+config = UniLMConfigXLMRoberta.from_pretrained("xlm-roberta-base")
+tokenizer = UniLMTokenizerXLMRoberta.from_pretrained("xlm-roberta-base")
+
+base_model = UniLMModelXLMRoberta.from_pretrained("xlm-roberta-base")
+
+s2s_model = UniLMForConditionalGenerationXLMRoberta.from_pretrained("xlm-roberta-base")
+# 训练和解码和BERT版本一样
+s2s_model(...)  # 训练
+s2s_model.generate(...)  # 解码
+```
+
+详见`examples/demo/train_xlm_roberta.py`和`examples/demo/infer_seq2seq_xlm_roberta.py`
+
 ### 训练和解码命令
 
-将`--base_model`选项设为`roberta`即可使用`unilm_train`和`unilm_decode`命令来训练和解码。
+将`--base_model`选项设为`roberta`或`xlm-roberta`即可使用`unilm_train`和`unilm_decode`命令来训练和解码。
 
 ```sh
 unilm_train \
     --base_model roberta \
-    --model_name_or_path microsoft/unilm-base-cased \
+    --model_name_or_path roberta-base \
     --batch_size 16 \
     --src_file train.src \
     --tgt_file train.tgt \
@@ -286,7 +307,7 @@ unilm_train \
 ```sh
 unilm_decode \
     --base_model roberta \
-    --model_name_or_path microsoft/unilm-base-cased \
+    --model_name_or_path roberta-base \
     --model_recover_path /path/to/checkpoints/checkpoint-xxx/pytorch.model.bin \
     --batch_size 64 \
     --src_file test.src \
@@ -301,3 +322,7 @@ unilm_decode \
     --output_candidates 1 \
     --no_repeat_ngram_size 3
 ```
+
+## 机器翻译
+
+详见`examples/machine_translation`.

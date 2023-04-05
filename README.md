@@ -4,7 +4,10 @@
 
 ## News
 
-- 2023/03/23: Support initializing UniLM with RoBERTa pre-trained models ([Learn More](#RoBERTa-Initialization))
+- 2023/04/05
+    - Support initializing UniLM with XLMRoBERTa pre-trained models ([Learn More](#(XLM)RoBERTa-Initialization))
+    - Machine translation with XLMRoBERTa-based UniLM ([Learn More](#Machine-Translation))
+- 2023/03/23: Support initializing UniLM with RoBERTa pre-trained models ([Learn More](#(XLM)RoBERTa-Initialization))
 
 ## Introduction
 
@@ -234,7 +237,7 @@ Inference speeds up compared to official implementaion, but GPU usage also incre
     |2|713s|595s|1.20|
     |4|623s|388s|1.61|
 
-## RoBERTa Initialization
+## (XLM)RoBERTa Initialization
 
 ⚠: Most Chinese RoBERTa pre-trained models use `BertTokenizer` and `BertForMaskedLM`, which means you can directly use the BERT-based version of UniLM.
 
@@ -256,14 +259,32 @@ s2s_model.generate(...)  # decode
 
 See also `examples/demo/train_roberta.py` and `examples/demo/infer_seq2seq_roberta.py`.
 
+### XLMRoBERTa-based UniLM components
+
+```py
+from unilm import UniLMConfigXLMRoberta, UniLMTokenizerXLMRoberta, UniLMModelXLMRoberta, UniLMForConditionalGenerationXLMRoberta
+
+config = UniLMConfigXLMRoberta.from_pretrained("xlm-roberta-base")
+tokenizer = UniLMTokenizerXLMRoberta.from_pretrained("xlm-roberta-base")
+
+base_model = UniLMModelXLMRoberta.from_pretrained("xlm-roberta-base")
+
+s2s_model = UniLMForConditionalGenerationXLMRoberta.from_pretrained("xlm-roberta-base")
+# train and decode just like the BERT-based version
+s2s_model(...)  # train
+s2s_model.generate(...)  # decode
+```
+
+See also `examples/demo/train_xlm_roberta.py` and `examples/demo/infer_seq2seq_xlm_roberta.py`.
+
 ### Train and Decode Commands
 
-Just specify the `--base_model` option with `roberta` to train and decode with the installed `unilm_train` and `unilm_decode` commands.
+Just specify the `--base_model` option with `roberta` or `xlm-roberta` to train and decode with the installed `unilm_train` and `unilm_decode` commands.
 
 ```sh
 unilm_train \
     --base_model roberta \
-    --model_name_or_path microsoft/unilm-base-cased \
+    --model_name_or_path roberta-base \
     --batch_size 16 \
     --src_file train.src \
     --tgt_file train.tgt \
@@ -281,7 +302,7 @@ unilm_train \
 ```sh
 unilm_decode \
     --base_model roberta \
-    --model_name_or_path microsoft/unilm-base-cased \
+    --model_name_or_path roberta-base \
     --model_recover_path /path/to/checkpoints/checkpoint-xxx/pytorch.model.bin \
     --batch_size 64 \
     --src_file test.src \
@@ -296,3 +317,7 @@ unilm_decode \
     --output_candidates 1 \
     --no_repeat_ngram_size 3
 ```
+
+## Machine Translation
+
+See `examples/machine_translation`.
